@@ -8,7 +8,7 @@ REPO=markadebartolo/hello-transcriber
 [[ "$(uname -s)" == Darwin ]]
 [[ "$(gh api user --jq .login)" == markadebartolo ]] || { echo 'Personal account required.' >&2; exit 1; }
 [[ "$MODE" == stage || "$MODE" == publish ]]
-python3 - "$OUT" <<'PY'
+python3 -I - "$OUT" <<'PY'
 import hashlib, json, pathlib, re, sys
 r=pathlib.Path(sys.argv[1]); m=json.loads((r/'release-manifest.json').read_text())
 assert m['notarization_status']=='Accepted' and m['manual_smoke_test']=='passed'
@@ -18,7 +18,7 @@ assert hashlib.sha256((r/m['artifact']).read_bytes()).hexdigest()==m['sha256']
 assert (r/'SHA256SUMS').read_text()==f"{m['sha256']}  {m['artifact']}\n"
 assert (r/'RELEASE_NOTES.md').read_text().splitlines()[0]==f"# Hello {m['version']}"
 PY
-read -r VERSION SOURCE ARTIFACT TEAM < <(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print(m["version"],m["source_commit"],m["artifact"],m["team_identifier"])' "$OUT/release-manifest.json")
+read -r VERSION SOURCE ARTIFACT TEAM < <(python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); print(m["version"],m["source_commit"],m["artifact"],m["team_identifier"])' "$OUT/release-manifest.json")
 TAG="hello-v$VERSION"
 # Both local and remote annotated/lightweight tags must resolve to the source commit.
 [[ "$(git -C "$ROOT_DIR" rev-parse "$TAG^{commit}")" == "$SOURCE" ]]
@@ -27,9 +27,19 @@ CHECK="$(mktemp -d "${TMPDIR:-/tmp}/hello-publish.XXXXXX")"
 trap 'rm -rf "$CHECK"' EXIT
 ditto -x -k "$OUT/$ARTIFACT" "$CHECK"
 bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$CHECK/Hello.app" "$TEAM"
+python3 -I - "$OUT/release-manifest.json" "$CHECK/Hello.app" <<'PYCODE'
+import json, pathlib, plistlib, re, subprocess, sys
+manifest=json.load(open(sys.argv[1])); app=pathlib.Path(sys.argv[2])
+info=plistlib.load(open(app/'Contents/Info.plist','rb'))
+assert info['CFBundleShortVersionString']==manifest['version']
+assert str(info['CFBundleVersion'])==manifest['build']
+for arch, checksum in manifest['app_cdhashes'].items():
+    result=subprocess.run(['codesign','-dv','--arch',arch,str(app)],capture_output=True,text=True,check=True)
+    assert re.search(r'^CDHash=(.+)$',result.stderr,re.M)[1]==checksum, 'Artifact differs from smoke-tested app'
+PYCODE
 xcrun stapler validate "$CHECK/Hello.app"
 spctl --assess --type execute --verbose=2 "$CHECK/Hello.app"
-python3 "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" signed
+python3 -I "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" signed
 if [[ "$MODE" == stage ]]; then
   [[ "$(gh repo view "$REPO" --json isPrivate --jq .isPrivate)" == true ]] || { echo 'Staging requires a private repository.' >&2; exit 1; }
   gh release create "$TAG" --repo "$REPO" --draft --verify-tag --title "Hello $VERSION" \
@@ -44,7 +54,7 @@ if [[ "$MODE" == stage ]]; then
   spctl --assess --type execute --verbose=2 "$OUT/downloaded/Hello.app"
   echo 'Private draft staged and exact download verified. Run downloaded smoke before publish.'
 else
-  python3 "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" downloaded
+  python3 -I "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" downloaded
   [[ "$(gh release view "$TAG" --repo "$REPO" --json isDraft --jq .isDraft)" == true ]]
   # Re-download to ensure staged assets have not changed since smoke testing.
   gh release download "$TAG" --repo "$REPO" --pattern "$ARTIFACT" --dir "$CHECK"

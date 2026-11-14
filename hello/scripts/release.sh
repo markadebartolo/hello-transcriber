@@ -33,7 +33,7 @@ if [[ "$MODE" == prepare ]]; then
     --entitlements "$ROOT_DIR/hello/Hello.entitlements" "$OUT/Hello.app"
   bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
   cp "$ROOT_DIR/hello/RELEASE_NOTES.md" "$OUT/RELEASE_NOTES.md"
-  python3 - "$OUT" "$SOURCE" "$VERSION" "$BUILD" "$TEAM" <<'PY'
+  python3 -I - "$OUT" "$SOURCE" "$VERSION" "$BUILD" "$TEAM" <<'PY'
 import datetime, json, pathlib, re, subprocess, sys
 out, source, version, build, team = sys.argv[1:]; root = pathlib.Path(out)
 hashes = {}
@@ -49,10 +49,10 @@ PY
 elif [[ "$MODE" == notarize ]]; then
   OUT="$(cd "${2:?Release directory required}" && pwd)"
   : "${HELLO_NOTARY_PROFILE:?Set the existing notarytool Keychain profile name}"
-  python3 "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" signed
-  TEAM="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["team_identifier"])' "$OUT/release-manifest.json")"
+  python3 -I "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" signed
+  TEAM="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["team_identifier"])' "$OUT/release-manifest.json")"
   bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
-  python3 - "$OUT" <<'PY'
+  python3 -I - "$OUT" <<'PY'
 import json, pathlib, re, subprocess, sys
 root = pathlib.Path(sys.argv[1]); manifest = json.loads((root/'release-manifest.json').read_text())
 for arch, checksum in manifest['app_cdhashes'].items():
@@ -62,7 +62,7 @@ PY
   ditto -c -k --keepParent "$OUT/Hello.app" "$OUT/notary-upload.zip"
   xcrun notarytool submit "$OUT/notary-upload.zip" --keychain-profile "$HELLO_NOTARY_PROFILE" \
     --wait --output-format json > "$OUT/notarization.json"
-  python3 - "$OUT/notarization.json" <<'PY'
+  python3 -I - "$OUT/notarization.json" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1])).get('status') == 'Accepted', 'Apple did not accept this app'
 PY
@@ -70,9 +70,9 @@ PY
   xcrun stapler validate "$OUT/Hello.app"
   bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
   spctl --assess --type execute --verbose=2 "$OUT/Hello.app"
-  ARTIFACT="$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print("Hello-"+m["version"]+"-b"+m["build"]+".zip")' "$OUT/release-manifest.json")"
+  ARTIFACT="$(python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); print("Hello-"+m["version"]+"-b"+m["build"]+".zip")' "$OUT/release-manifest.json")"
   ditto -c -k --keepParent "$OUT/Hello.app" "$OUT/$ARTIFACT"
-  python3 - "$OUT" "$ARTIFACT" <<'PY'
+  python3 -I - "$OUT" "$ARTIFACT" <<'PY'
 import hashlib, json, pathlib, sys
 root=pathlib.Path(sys.argv[1]); artifact=sys.argv[2]
 checksum=hashlib.sha256((root/artifact).read_bytes()).hexdigest()

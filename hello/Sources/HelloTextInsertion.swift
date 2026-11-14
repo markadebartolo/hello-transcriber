@@ -20,6 +20,7 @@ struct HelloTextDestination {
               let value = attribute(kAXValueAttribute, of: element) as? String,
               range.location <= value.utf16.count,
               range.length <= value.utf16.count - range.location else { return nil }
+        AXUIElementSetMessagingTimeout(element, 0.25)
         var elementPID: pid_t = 0
         guard AXUIElementGetPid(element, &elementPID) == .success,
               elementPID == application.processIdentifier else { return nil }
@@ -45,7 +46,9 @@ struct HelloTextDestination {
               Self.attribute(kAXValueAttribute, of: currentElement) as? String == originalValue else { return false }
         var isSettable = DarwinBoolean(false)
         guard AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &isSettable) == .success,
-              isSettable.boolValue else { return false }
+              isSettable.boolValue,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == applicationIdentifier,
+              !IsSecureEventInputEnabled() else { return false }
         return AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success
     }
 

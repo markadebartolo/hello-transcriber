@@ -38,7 +38,7 @@ this repository does not imply that standalone Hello existed in Dorsal.
 
 Integration changes require a typed selection range, enabled non-secure text role,
 original field value, original process, and current focus before AX selected-text
-replacement. User interaction/app switching invalidates the destination. No
+replacement. User interaction/app switching invalidates the destination. Accessibility calls are bounded and the frontmost app is checked again before writing. No
 clipboard mutation happens until Copy; there is no keyboard paste or Return/Send.
 Cleanup is optional, local and review-only; word identity alone cannot guarantee
 meaning. Strict token/number/symbol checks preserve the original on rejection.

@@ -12,7 +12,7 @@ grep -Eq 'flags=.*\(.*runtime.*\)' <<< "$DETAILS"
 ENTITLEMENTS="$(mktemp)"
 trap 'rm -f "$ENTITLEMENTS"' EXIT
 codesign -d --entitlements :- "$APP" > "$ENTITLEMENTS" 2>/dev/null
-python3 - "$ENTITLEMENTS" <<'PY'
+python3 -I - "$ENTITLEMENTS" <<'PY'
 import plistlib, sys
 entitlements = plistlib.load(open(sys.argv[1], 'rb'))
 assert entitlements == {'com.apple.security.device.audio-input': True}, entitlements
