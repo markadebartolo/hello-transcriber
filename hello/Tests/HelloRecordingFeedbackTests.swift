@@ -22,6 +22,20 @@ struct HelloRecordingFeedbackTests {
         precondition(state(held: true, result: true).phase == .stopped,
                      "Result-toast expiry must not hide a held shortcut")
         precondition(!state().showsLiveWaveform)
+        let word = HelloLiveWord("Hello there")
+        precondition(word.word == "there" && word.before == "t" && word.focus == "h" && word.after == "ere")
+        precondition(HelloLiveWord("Maya Chan").word == "Chan")
+        precondition(HelloLiveWord("Maya Chen").word == "Chen", "Recognition revisions replace the word immediately")
+        precondition(HelloLiveWord("one two three\n").word == "three", "No queue of stale earlier words")
+        precondition(HelloLiveWord("").word.isEmpty)
+        precondition(HelloLiveWord(" \n\t").focus.isEmpty)
+        precondition(HelloLiveWord("I").focus == "I")
+        precondition(HelloLiveWord("“hello!”").focus == "e")
+        precondition(HelloLiveWord("cafe\u{301}").before + HelloLiveWord("cafe\u{301}").focus + HelloLiveWord("cafe\u{301}").after == "cafe\u{301}")
+        precondition(HelloLiveWord("😊").after == "😊" && HelloLiveWord("😊").focus.isEmpty)
+        precondition(HelloLiveWord("$15").focus == "5")
+        precondition(HelloLiveWord("extraordinarily").focus == "a")
         print("Hello recording feedback: held-key, startup, stopped, finalizing and result transitions passed")
+        print("Hello live word: immediate revisions, whitespace, punctuation, numbers and Unicode cases passed")
     }
 }

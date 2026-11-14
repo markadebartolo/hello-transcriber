@@ -6,7 +6,8 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
 - Hold Control + Option to dictate using Apple Speech; release to finish.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.
-- Compact live captions above the waveform show provisional recognition revisions.
+- A small single-word preview above the waveform updates immediately with provisional
+  recognition; a fixed red focus letter and black remaining letters aid tracking.
 - Optional local spelling memory suggests short edits to recently inserted text.
   Only user-approved pairs are remembered, with removal/clear controls and raw
   recognition available through Copy original. No cloud model training is involved.

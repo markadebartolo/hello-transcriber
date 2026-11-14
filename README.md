@@ -35,13 +35,15 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
 - A persistent indicator shows when Control + Option are held. While listening,
   its small waveform follows microphone levels, including quiet pauses. Live
-  recognized words appear in a single line above it, updating as Apple Speech
-  revises its interpretation. Long speech shows the latest words; the full
+  recognition shows one newest word in a 144 × 24-point preview above it. A red
+  focus letter stays at a fixed position; the other letters are black on white.
+  Words update immediately with Apple's partial results, without queued playback;
+  recognition can revise or skip earlier words. The full
   transcript is in Hello. These partial results are provisional, not a guarantee
   of accuracy or an approval step before insertion. Release shows
   **Transcribing…** until finalization ends. If capture stops early, the indicator
   says **Microphone stopped** and stays visible until you release the keys.
-- In normal dictation mode, only enabled, non-secure text fields exposing a verifiable selection and value
+- In normal dictation mode, only non-secure text fields with a writable selection and verifiable value
   through Accessibility can receive text. Changing application, typing, clicking,
   moving the selection, or editing the field invalidates insertion. Hello copies the original transcript automatically
   when the field cannot be verified and shows **Copied to clipboard.** Browser editors and custom controls may not
@@ -50,6 +52,9 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
   document may not give its text field keyboard focus. After a fallback, Hello's
   window explains whether focus, selection, field support or write verification
   prevented insertion. Optional Form filling is separate and defaults off.
+  Explicitly disabled controls and failed accessibility requests are rejected;
+  native text views that omit the optional enabled flag can qualify when selected
+  text replacement is supported.
 - No Return, Send or keyboard paste is generated. If insertion is unavailable,
   Hello replaces the clipboard with the original transcript and shows a brief
   nonactivating **Copied to clipboard.** indicator. Cancel/Clear do not change it.

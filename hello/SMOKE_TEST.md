@@ -18,9 +18,11 @@ Required checks (the IDs are release-gate keys):
   its waveform follows real audio. If capture stops early, it shows Microphone
   stopped rather than disappearing or claiming to listen. Release shows
   Transcribing until finalization ends. Cancel while held leaves a stopped state.
-  Partial recognized words appear above the small waveform and update in place
-  as recognition revises them. Long speech shows recent words; the full text stays
-  in Hello. The caption does not take focus or insert partial text.
+  One newest recognized word appears above the small waveform and updates
+  immediately, with one red focus letter at a fixed position and the other letters
+  black on white. Check accented words and long words in light/dark mode. The full
+  text stays in Hello; revisions may skip earlier words in this compact preview.
+  The caption does not take focus or insert partial text.
 - [ ] **selection:** replace only a selected word in TextEdit; test caret insertion
   and Unicode/surrogate text. Try Safari textarea and Notes. Unsupported fields
   offer Copy. Record which app/version genuinely supports AX insertion.

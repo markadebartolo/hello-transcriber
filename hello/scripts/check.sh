@@ -14,6 +14,9 @@ xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloTranscriptPolicy.
 xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloRecordingFeedback.swift" \
   "$ROOT_DIR/hello/Tests/HelloRecordingFeedbackTests.swift" -o "$CHECK_DIR/feedback-tests"
 "$CHECK_DIR/feedback-tests"
+xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloTextInsertion.swift" \
+  "$ROOT_DIR/hello/Tests/HelloTextFieldTests.swift" -o "$CHECK_DIR/text-field-tests"
+"$CHECK_DIR/text-field-tests"
 xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloSpellingMemory.swift" \
   "$ROOT_DIR/hello/Tests/HelloSpellingMemoryTests.swift" -o "$CHECK_DIR/spelling-tests"
 "$CHECK_DIR/spelling-tests"

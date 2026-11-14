@@ -141,3 +141,22 @@ A reported TextEdit fallback is not treated as a passed insertion test. Added
 specific user-facing fallback reasons, Unicode-valid selection bounds, an immediate
 pre-write recheck, and exact value readback before reporting insertion success.
 No whole-field replacement, synthetic paste, Return or Send was introduced.
+
+## November 14, 2026 — writable native text fields and single-word preview
+
+Computer inspection of build 15 showed TextEdit's editable text area while Hello
+reported an unsupported focused control. The old eligibility check treated a
+missing AXEnabled attribute as disabled. Native views can omit that attribute;
+eligibility now requires writable AXSelectedText and accepts an omitted flag only
+for attributeUnsupported/noValue. Explicit false, malformed values, communication
+failures, unsupported roles and secure fields still reject insertion. Original
+focus, PID, full value and UTF-16 selection checks and exact write readback remain.
+Thirteen capability tests cover this boundary. This is not a substitute for
+repeating the failed physical TextEdit insertion test on the signed candidate.
+
+Replaced the 260 × 30-point phrase preview with a 144 × 24-point newest-word
+preview. Its red focus letter stays in a fixed column, with the other letters
+black on white; the active combined HUD is 144 × 60 points. Partial revisions
+appear immediately with no stale playback queue or timer. Grapheme-based coloring
+preserves accents and emoji. The full provisional transcript remains in Hello;
+the compact preview can skip earlier words when recognition delivers a batch.

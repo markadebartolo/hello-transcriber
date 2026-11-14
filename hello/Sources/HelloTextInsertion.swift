@@ -2,6 +2,18 @@ import AppKit
 import ApplicationServices
 import Carbon
 
+/// Some native text views omit AXEnabled. A writable selection is the required
+/// capability; an explicit disabled flag or a failed AX request still rejects it.
+enum HelloTextFieldEligibility {
+    static func accepts(role: String?, subrole: String?, enabled: Bool?,
+                        enabledError: AXError, selectionWritable: Bool) -> Bool {
+        guard [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? ""),
+              subrole != kAXSecureTextFieldSubrole, selectionWritable else { return false }
+        if enabledError == .success { return enabled == true }
+        return enabledError == .attributeUnsupported || enabledError == .noValue
+    }
+}
+
 /// Captures a destination before recording. A focus or selection change invalidates it.
 @MainActor
 struct HelloTextDestination {
@@ -141,9 +153,13 @@ struct HelloTextDestination {
     private static func isEditableNonSecureElement(_ element: AXUIElement) -> Bool {
         let role = attribute(kAXRoleAttribute, of: element) as? String
         let subrole = attribute(kAXSubroleAttribute, of: element) as? String
-        guard attribute(kAXEnabledAttribute, of: element) as? Bool == true,
-              subrole != kAXSecureTextFieldSubrole else { return false }
-        return [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? "")
+        var enabledValue: CFTypeRef?
+        let enabledError = AXUIElementCopyAttributeValue(element, kAXEnabledAttribute as CFString, &enabledValue)
+        var writable = DarwinBoolean(false)
+        let writableError = AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &writable)
+        return HelloTextFieldEligibility.accepts(role: role, subrole: subrole,
+            enabled: enabledValue as? Bool, enabledError: enabledError,
+            selectionWritable: writableError == .success && writable.boolValue)
     }
 
     private static func attribute(_ name: String, of element: AXUIElement) -> CFTypeRef? {
