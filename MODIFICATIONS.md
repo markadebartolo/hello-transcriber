@@ -97,3 +97,18 @@ endpoints and redirect rejection. OpenRouter requires schema support and request
 non-collecting provider routing. Common exact-span and destination checks remain.
 Fixture tests cover all three request/auth formats and provider-specific incomplete,
 refused and malformed responses. They do not claim live Anthropic/OpenRouter access.
+
+## November 14, 2026 — observed first-audio-buffer crash
+
+Signed builds 10 and 11 crashed with EXC_BREAKPOINT / `_dispatch_assert_queue_fail`
+on `RealtimeMessenger.mServiceQueue`, through `AVAudioNodeTap::TapMessage` into
+Hello. The AVAudioEngine tap closure was created inside MainActor-isolated
+BuddyMicrophoneCapture.start, and the legacy SDK callback inherited that actor.
+Moved production callback creation to an explicitly nonisolated, Sendable factory.
+It still consumes each borrowed audio buffer synchronously; UI updates remain on
+MainActor. A regression invokes that exact handler with a PCM buffer from a
+background queue and checks delivery, then resumes MainActor. Updated only the
+reviewed current module checksum; original provenance hashes are unchanged.
+The audio-engine configuration notification receiver is also explicitly Sendable
+before dispatching cancellation onto MainActor, since it may arrive off-main.
+The earlier indicator-only change did not fix this runtime microphone crash.

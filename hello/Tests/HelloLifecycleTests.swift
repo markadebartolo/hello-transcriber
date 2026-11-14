@@ -54,6 +54,24 @@ private final class TestProvider: BuddyTranscriptionProvider {
 @main
 struct HelloLifecycleTests {
     @MainActor static func main() async {
+        // Invoke the exact production AVAudioEngine tap handler off-main.
+        // The old inline SDK block inherited MainActor and trapped on buffer 1.
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            let handler = BuddyMicrophoneCapture.makeTapHandler { buffer in
+                precondition(!Thread.isMainThread)
+                precondition(buffer.frameLength == 32)
+                precondition(buffer.floatChannelData![0][0] == 0.25)
+                done.resume()
+            }
+            DispatchQueue.global().async {
+                let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+                let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32)!
+                buffer.frameLength = 32
+                buffer.floatChannelData![0][0] = 0.25
+                handler(buffer, AVAudioTime(sampleTime: 0, atRate: 48_000))
+            }
+        }
+        MainActor.assertIsolated()
         // Exercise the actual permission bridge from MainActor with TCC-style
         // background completion. An actor-inheriting callback traps in Swift 6.
         for expected in [true, false] {
@@ -164,6 +182,6 @@ struct HelloLifecycleTests {
         await permissionStart.value
         precondition(capture.running && permissionManager.isActivelyRecordingAudio)
         permissionManager.cancelCurrentDictation(preserveDraftText: false)
-        print("Hello lifecycle: 10 regression scenarios passed (injected provider/audio; no microphone access)")
+        print("Hello lifecycle: 11 regression scenarios passed (injected provider/audio and real tap handler; no microphone access)")
     }
 }

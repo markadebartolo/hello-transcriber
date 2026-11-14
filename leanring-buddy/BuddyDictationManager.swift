@@ -880,7 +880,8 @@ final class BuddyMicrophoneCapture: BuddyAudioCapture {
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw AppleSpeechTranscriptionProviderError(message: "No microphone is available. Check your audio input in System Settings.")
         }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in consume(buffer) }
+        input.installTap(onBus: 0, bufferSize: 1024, format: format,
+                         block: Self.makeTapHandler(consume: consume))
         hasTap = true
         do {
             engine.prepare()
@@ -897,6 +898,16 @@ final class BuddyMicrophoneCapture: BuddyAudioCapture {
             engine.inputNode.removeTap(onBus: 0)
             hasTap = false
         }
+    }
+
+    // AVAudioNodeTapBlock is a legacy non-Sendable SDK callback. Creating it
+    // inline in start() inherits MainActor and traps on the first audio buffer.
+    // Keep the actual production handler explicitly nonisolated and Sendable;
+    // borrowed buffers are consumed synchronously on the audio callback queue.
+    nonisolated static func makeTapHandler(
+        consume: @escaping @Sendable (AVAudioPCMBuffer) -> Void
+    ) -> @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        { buffer, _ in consume(buffer) }
     }
 }
 

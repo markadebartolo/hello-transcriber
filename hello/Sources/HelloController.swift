@@ -92,7 +92,7 @@ final class HelloController: ObservableObject {
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)
             .sink { [weak self] _ in self?.invalidateDestination() }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: .AVAudioEngineConfigurationChange)
-            .sink { [weak self] _ in
+            .sink { @Sendable [weak self] _ in
                 Task { @MainActor in if self?.isBusy == true { self?.cancel() } }
             }.store(in: &subscriptions)
         shortcutMonitor.onCancel = { [weak self] in if self?.isBusy == true { self?.cancel() } }
