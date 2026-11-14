@@ -1,0 +1,28 @@
+name: Hello compile and policy checks
+on:
+  pull_request:
+    paths:
+      - 'hello/**'
+      - 'leanring-buddy/BuddyDictationManager.swift'
+      - 'leanring-buddy/BuddyTranscriptionProvider.swift'
+      - 'leanring-buddy/AppleSpeechTranscriptionProvider.swift'
+      - 'leanring-buddy/GlobalPushToTalkShortcutMonitor.swift'
+      - 'leanring-buddy/OnDeviceModel.swift'
+      - 'leanring-buddy/DorsalLog.swift'
+      - '.github/workflows/hello-check.yml'
+  push:
+    branches: ['feature/hello-transcriber']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hello-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  compile:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile without signing or launching
+        run: bash hello/scripts/check.sh

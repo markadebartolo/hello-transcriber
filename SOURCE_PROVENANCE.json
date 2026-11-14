@@ -1,0 +1,70 @@
+{
+  "status": "Original handoff provenance; current file hashes recorded separately",
+  "source_repository": "markadebartolo/dorsal-beta",
+  "source_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+  "intended_new_repository": "markadebartolo/hello-transcriber",
+  "original_files": [
+    {
+      "path": "leanring-buddy/BuddyDictationManager.swift",
+      "upstream_repository": "markadebartolo/dorsal-beta",
+      "upstream_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+      "upstream_git_blob_sha": "18c6f66c9d7cd613c3502a07e31e225a97525192",
+      "upstream_sha256": "e8dcd4dec4d545520b61fc66c98ca5b3f80571338dbae19e7667fcf60233b043",
+      "draft_sha256": "e8dcd4dec4d545520b61fc66c98ca5b3f80571338dbae19e7667fcf60233b043",
+      "unchanged": true
+    },
+    {
+      "path": "leanring-buddy/BuddyTranscriptionProvider.swift",
+      "upstream_repository": "markadebartolo/dorsal-beta",
+      "upstream_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+      "upstream_git_blob_sha": "57f16eb7671bc8af5b73923dd8e4a4e1aa264582",
+      "upstream_sha256": "82a9ebbdba09e3ddd0dca9bdd574bb4881d37a04beb2c0c7559350f5120ead6f",
+      "draft_sha256": "301e79b3076803a1511bc435b95cf4d74f3404bd74212c9da191876fece4061a",
+      "unchanged": false
+    },
+    {
+      "path": "leanring-buddy/AppleSpeechTranscriptionProvider.swift",
+      "upstream_repository": "markadebartolo/dorsal-beta",
+      "upstream_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+      "upstream_git_blob_sha": "600594fabc2cd600fd2979be8d3abe5699cf4607",
+      "upstream_sha256": "8e2b2ff1dcc2d37ac95fb49a8c2febda8d67f395fd01a1395e9ea44e62a42c15",
+      "draft_sha256": "8e2b2ff1dcc2d37ac95fb49a8c2febda8d67f395fd01a1395e9ea44e62a42c15",
+      "unchanged": true
+    },
+    {
+      "path": "leanring-buddy/GlobalPushToTalkShortcutMonitor.swift",
+      "upstream_repository": "markadebartolo/dorsal-beta",
+      "upstream_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+      "upstream_git_blob_sha": "a018520100acceb5ac101fe3a313860fe013a60a",
+      "upstream_sha256": "56d61e3665425ed819ad582cd88b547e2da8501ddc19588712db5e16ded20c7e",
+      "draft_sha256": "56d61e3665425ed819ad582cd88b547e2da8501ddc19588712db5e16ded20c7e",
+      "unchanged": true
+    },
+    {
+      "path": "leanring-buddy/OnDeviceModel.swift",
+      "upstream_repository": "markadebartolo/dorsal-beta",
+      "upstream_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+      "upstream_git_blob_sha": "6569410bed9b5b7b36b867126130748ebbe2f58a",
+      "upstream_sha256": "77a0ed797eed8e0a12f3f91cb7c7f53a3efa5d380efca41de05588dd3e10e232",
+      "draft_sha256": "77a0ed797eed8e0a12f3f91cb7c7f53a3efa5d380efca41de05588dd3e10e232",
+      "unchanged": true
+    },
+    {
+      "path": "leanring-buddy/DorsalLog.swift",
+      "upstream_repository": "markadebartolo/dorsal-beta",
+      "upstream_commit": "a45b513fa0ae492980d6dfe177374f0d360baaa1",
+      "upstream_git_blob_sha": "b0362575434dd321c3edc5a17702ae9a02ad86bb",
+      "upstream_sha256": "3057d3fdab5f0d545448601db3168719841c98d2fbd9800d32f3306d2982622b",
+      "draft_sha256": "3057d3fdab5f0d545448601db3168719841c98d2fbd9800d32f3306d2982622b",
+      "unchanged": true
+    }
+  ],
+  "new_code": [
+    "hello/Sources/HelloApp.swift",
+    "hello/Sources/HelloController.swift",
+    "hello/Sources/HelloStatusPanel.swift",
+    "hello/Sources/HelloTextInsertion.swift",
+    "hello/Sources/HelloTranscriptPolicy.swift"
+  ],
+  "licensing": "Scoped Mark-owned extraction under MIT; Clicky MIT notice retained. Original Dorsal license unchanged."
+}

@@ -1,0 +1,13 @@
+.DS_Store
+DerivedData/
+build/
+*.xcarchive
+*.xcuserstate
+xcuserdata/
+releases/
+.env*
+*.p12
+*.p8
+*.mobileprovision
+source-context/
+HELLO_HANDOFF.md
