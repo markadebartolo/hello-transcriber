@@ -42,7 +42,7 @@ final class HelloController: ObservableObject {
     @Published var cleanPunctuation = false
 
     private var subscriptions = Set<AnyCancellable>()
-    private var recordingTask: Task<Void, Never>?
+    @Published private var recordingTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
     private var sessionIdentifier = UUID()
     private var destination: HelloTextDestination?
@@ -55,11 +55,20 @@ final class HelloController: ObservableObject {
     var speechReady: Bool { SFSpeechRecognizer.authorizationStatus() == .authorized }
     var accessibilityReady: Bool { AXIsProcessTrusted() }
     var isBusy: Bool { recordingTask != nil || dictation.isDictationInProgress || isProcessingTranscript || isRequestingPermissions }
+    var recordingFeedback: HelloRecordingFeedback {
+        HelloRecordingFeedback(
+            shortcutHeld: shortcutMonitor.isShortcutCurrentlyPressed,
+            starting: dictation.isPreparingToRecord || (recordingTask != nil && !dictation.isActivelyRecordingAudio),
+            recording: dictation.isActivelyRecordingAudio,
+            finalizing: dictation.isFinalizingTranscript,
+            processing: isProcessingTranscript,
+            showingResult: isShowingResult)
+    }
     var statusText: String {
         if isRequestingPermissions { return "Waiting for permission…" }
         if dictation.isPreparingToRecord { return "Starting microphone…" }
         if dictation.isActivelyRecordingAudio { return "Listening — release to finish" }
-        if dictation.isFinalizingTranscript { return "Finishing transcript…" }
+        if dictation.isFinalizingTranscript { return "Transcribing…" }
         if isProcessingTranscript { return sessionUsesForms ? "Matching your words to the form…" : "Tidying punctuation…" }
         return dictation.lastErrorMessage ?? resultMessage
     }

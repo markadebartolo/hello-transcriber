@@ -33,6 +33,10 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
 ## Behavior
 
+- A persistent indicator shows when Control + Option are held. While listening,
+  its waveform follows microphone levels, including quiet pauses. Release shows
+  **Transcribing…** until finalization ends. If capture stops early, the indicator
+  says **Microphone stopped** and stays visible until you release the keys.
 - In normal dictation mode, only enabled, non-secure text fields exposing a verifiable selection and value
   through Accessibility can receive text. Changing application, typing, clicking,
   moving the selection, or editing the field invalidates insertion. Hello copies the original transcript automatically

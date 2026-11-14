@@ -4,7 +4,8 @@ First standalone Hello Transcriber candidate, developed from the scoped Dorsal
 extraction on November 14, 2026. No earlier Hello release history is implied.
 
 - Hold Control + Option to dictate using Apple Speech; release to finish.
-- Live transcript, recording indicator/audio feedback, Escape/Cancel, Copy and Clear.
+- Live transcript, persistent held-key indicator with a real microphone-level
+  waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.
 - Normal dictation inserts only into the verified original supported text field and selection;
   changed/unsupported fields automatically copy the original transcript and show
   “Copied to clipboard.” without stealing focus. Secure fields excluded. No Return/Send.

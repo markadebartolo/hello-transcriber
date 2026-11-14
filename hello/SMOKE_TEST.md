@@ -14,6 +14,10 @@ Required checks (the IDs are release-gate keys):
   visible; Retry works after grants/relaunch. No Screen Recording prompt in normal mode; Camera is never requested.
 - [ ] **microphone:** actual spoken test in TextEdit; recording HUD does not take
   focus; first words survive; audio meter responds; release stops microphone.
+  The indicator stays visible for the entire key hold, including silent pauses;
+  its waveform follows real audio. If capture stops early, it shows Microphone
+  stopped rather than disappearing or claiming to listen. Release shows
+  Transcribing until finalization ends. Cancel while held leaves a stopped state.
 - [ ] **selection:** replace only a selected word in TextEdit; test caret insertion
   and Unicode/surrogate text. Try Safari textarea and Notes. Unsupported fields
   offer Copy. Record which app/version genuinely supports AX insertion.

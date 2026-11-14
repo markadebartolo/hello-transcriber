@@ -11,6 +11,9 @@ SWIFT_FLAGS=(-swift-version 6 -warnings-as-errors -module-cache-path "$CHECK_DIR
 xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloTranscriptPolicy.swift" \
   "$ROOT_DIR/hello/Tests/HelloTranscriptPolicyTests.swift" -o "$CHECK_DIR/policy-tests"
 "$CHECK_DIR/policy-tests"
+xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloRecordingFeedback.swift" \
+  "$ROOT_DIR/hello/Tests/HelloRecordingFeedbackTests.swift" -o "$CHECK_DIR/feedback-tests"
+"$CHECK_DIR/feedback-tests"
 xcrun swiftc "${SWIFT_FLAGS[@]}" \
   "$ROOT_DIR/leanring-buddy/BuddyDictationManager.swift" \
   "$ROOT_DIR/leanring-buddy/BuddyTranscriptionProvider.swift" \
