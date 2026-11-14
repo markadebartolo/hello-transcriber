@@ -13,6 +13,20 @@ final class HelloController: ObservableObject {
     @Published private(set) var resultMessage = "Hold Control + Option in a text field."
     @Published private(set) var isProcessingTranscript = false
     @Published private(set) var isRequestingPermissions = false
+    @Published var formMode = false {
+        didSet { if oldValue != formMode { cancel() } }
+    }
+    @Published private(set) var hasAPIKey = false
+    @Published private(set) var formPreview: [HelloFormAssignment] = []
+    @Published private(set) var formFields: [HelloFormField] = []
+    @Published private(set) var keyMessage = ""
+    @Published private(set) var formMessage = ""
+    @Published private(set) var isShowingResult = false
+    private var resultDismissTask: Task<Void, Never>?
+    private var formContext: HelloFormContext?
+    private var formCaptureError: String?
+    private var contextIdentifier = UUID()
+    private var sessionUsesForms = false
     @Published var automaticallyInsert = true
     @Published var cleanPunctuation = false
 
@@ -23,6 +37,7 @@ final class HelloController: ObservableObject {
     private var destination: HelloTextDestination?
     private var statusPanel: HelloStatusPanel?
     private var permissionRefreshTask: Task<Void, Never>?
+    private var formInteractionMonitor: Any?
     private var cleanupTimeoutTask: Task<Void, Never>?
 
     var microphoneReady: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
@@ -34,7 +49,7 @@ final class HelloController: ObservableObject {
         if dictation.isPreparingToRecord { return "Starting microphone…" }
         if dictation.isActivelyRecordingAudio { return "Listening — release to finish" }
         if dictation.isFinalizingTranscript { return "Finishing transcript…" }
-        if isProcessingTranscript { return "Tidying punctuation…" }
+        if isProcessingTranscript { return sessionUsesForms ? "Matching your words to the form…" : "Tidying punctuation…" }
         return dictation.lastErrorMessage ?? resultMessage
     }
 
@@ -55,13 +70,13 @@ final class HelloController: ObservableObject {
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)
             .sink { [weak self] _ in if self?.isBusy == true { self?.cancel() } }.store(in: &subscriptions)
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)
-            .sink { [weak self] _ in self?.destination = nil }.store(in: &subscriptions)
+            .sink { [weak self] _ in self?.invalidateDestination() }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: .AVAudioEngineConfigurationChange)
             .sink { [weak self] _ in
                 Task { @MainActor in if self?.isBusy == true { self?.cancel() } }
             }.store(in: &subscriptions)
         shortcutMonitor.onCancel = { [weak self] in if self?.isBusy == true { self?.cancel() } }
-        shortcutMonitor.onDestinationInteraction = { [weak self] in self?.destination = nil }
+        shortcutMonitor.onDestinationInteraction = { [weak self] in self?.invalidateDestination() }
         permissionRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
@@ -72,8 +87,42 @@ final class HelloController: ObservableObject {
                 }
             }
         }
+        formInteractionMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.scrollWheel, .otherMouseDown]) { [weak self] _ in
+            Task { @MainActor in self?.invalidateDestination() }
+        }
         shortcutMonitor.start()
         statusPanel = HelloStatusPanel(controller: self)
+    }
+
+    func saveAPIKey(_ value: String) {
+        guard !isBusy else { return }
+        if HelloAPIKey.save(value) {
+            hasAPIKey = true
+            keyMessage = "Key saved in this Mac's Keychain."
+        } else { keyMessage = "Could not save the key. Unlock Keychain and try again." }
+    }
+
+    func checkAPIKey() { hasAPIKey = HelloAPIKey.read() != nil }
+
+    func removeAPIKey() {
+        cancel()
+        if HelloAPIKey.remove() { hasAPIKey = false; keyMessage = "Key removed." }
+        else { keyMessage = "Keychain could not remove the key." }
+    }
+
+    func requestScreenAccess() {
+        if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+        openPrivacySettings("ScreenCapture")
+    }
+
+    private func invalidateDestination() {
+        destination = nil
+        formContext = nil
+        contextIdentifier = UUID()
+        // Keep completion owned by the original session. Do not copy here:
+        // a mouse-down on Cancel/Clear arrives before that button's action.
+        // Revalidation prevents writes; cancellation still suppresses completion.
+
     }
 
     func requestAudioPermissions() {
@@ -118,9 +167,29 @@ final class HelloController: ObservableObject {
             resultMessage = "Open Hello and enable microphone and speech recognition first."
             return
         }
+        if formMode && !CGPreflightScreenCaptureAccess() {
+            resultMessage = "Open Hello and enable Screen Recording for form filling."
+            return
+        }
+        if formMode && HelloAPIKey.read() == nil {
+            resultMessage = "Add your OpenAI API key in Hello first."
+            return
+        }
+        dismissResult()
         let identifier = UUID()
         sessionIdentifier = identifier
-        destination = automaticallyInsert ? HelloTextDestination.capture() : nil
+        contextIdentifier = UUID()
+        sessionUsesForms = formMode
+        formPreview = []
+        formFields = []
+        formMessage = ""
+        formContext = nil
+        formCaptureError = nil
+        if sessionUsesForms {
+            do { formContext = try HelloFormContext.capture() }
+            catch { formCaptureError = error.localizedDescription }
+        }
+        destination = automaticallyInsert && !sessionUsesForms ? HelloTextDestination.capture() : nil
         transcript = ""
         originalTranscript = ""
         resultMessage = "No speech was captured. Hold the shortcut while speaking."
@@ -151,9 +220,14 @@ final class HelloController: ObservableObject {
     private func processTranscript(_ text: String, identifier: UUID) {
         originalTranscript = text
         transcript = text
+        if sessionUsesForms {
+            processForm(text, identifier: identifier)
+            return
+        }
         let shouldClean = cleanPunctuation && OnDeviceModel.isAvailable
         isProcessingTranscript = shouldClean
         let capturedDestination = destination
+        let capturedRevision = contextIdentifier
         destination = nil
         // Punctuation can alter meaning even with identical words. Cleanup is
         // review-only: never insert an unreviewed model proposal into another app.
@@ -166,7 +240,7 @@ final class HelloController: ObservableObject {
                       self.isProcessingTranscript else { return }
                 self.processingTask?.cancel()
                 self.isProcessingTranscript = false
-                self.resultMessage = "Cleanup timed out. Original transcript ready to copy."
+                self.copyFallbackTranscript()
             }
         }
         processingTask = Task { [weak self] in
@@ -179,21 +253,108 @@ final class HelloController: ObservableObject {
             transcript = HelloTranscriptPolicy.acceptedCleanup(candidate, original: text)
             cleanupTimeoutTask?.cancel()
             isProcessingTranscript = false
-            if shouldInsert, let capturedDestination, capturedDestination.insert(transcript) {
-                resultMessage = "Inserted into \(capturedDestination.applicationName)."
+            if shouldInsert, contextIdentifier == capturedRevision, let capturedDestination, capturedDestination.insert(transcript) {
+                announceResult("Inserted into \(capturedDestination.applicationName).")
             } else {
-                resultMessage = shouldClean ? "Review punctuation before copying. The original is available." : shouldInsert
-                    ? "Transcript ready. The field changed or doesn't support insertion — use Copy."
-                    : "Transcript ready to copy."
+                copyFallbackTranscript()
             }
         }
+    }
+
+    private func processForm(_ text: String, identifier: UUID) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let context = formContext else {
+            formMessage = formCaptureError ?? "The original form changed."
+            copyFallbackTranscript()
+            return
+        }
+        let revision = contextIdentifier
+        isProcessingTranscript = true
+        formFields = context.fields
+        cleanupTimeoutTask?.cancel()
+        cleanupTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(45))
+            guard !Task.isCancelled, let self, sessionIdentifier == identifier,
+                  isProcessingTranscript else { return }
+            processingTask?.cancel()
+            isProcessingTranscript = false
+            formContext = nil
+            formMessage = "Form matching timed out."
+            copyFallbackTranscript()
+        }
+        processingTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let image = try await context.screenshot()
+                guard !Task.isCancelled, sessionIdentifier == identifier else { return }
+                guard contextIdentifier == revision else { throw HelloFormError.unavailable("The original form changed.") }
+                guard let key = HelloAPIKey.read() else { throw HelloFormError.unavailable("API key unavailable. Use Copy.") }
+                let plan = try await HelloFormPlanner.plan(transcript: text, fields: context.fields, image: image, key: key)
+                guard !Task.isCancelled, sessionIdentifier == identifier else { return }
+                guard contextIdentifier == revision else { throw HelloFormError.unavailable("The original form changed.") }
+                formPreview = plan.assignments
+                if HelloFormPolicy.mayAutomaticallyFill(plan) {
+                    let result = context.apply(plan.assignments)
+                    if result.complete {
+                        announceResult("Filled \(result.filled) field(s). Review before submitting.")
+                    } else {
+                        formMessage = "Verified \(result.filled) field(s) filled, then stopped. Inspect the form before pasting to avoid duplicates."
+                        copyFallbackTranscript()
+                    }
+                } else {
+                    formMessage = "The field mapping needs review. Check the suggestions before pasting."
+                    copyFallbackTranscript()
+                }
+            } catch {
+                guard !Task.isCancelled, sessionIdentifier == identifier else { return }
+                formMessage = (error as? HelloFormError)?.errorDescription ?? "Form matching failed."
+                copyFallbackTranscript()
+            }
+            cleanupTimeoutTask?.cancel()
+            isProcessingTranscript = false
+            formContext = nil
+        }
+    }
+
+    private func announceResult(_ message: String) {
+        resultMessage = message
+        resultDismissTask?.cancel()
+        isShowingResult = true
+        resultDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.isShowingResult = false
+        }
+    }
+
+    func dismissResult() {
+        resultDismissTask?.cancel()
+        isShowingResult = false
+    }
+
+    /// Automatic fallback copies the original speech transcript, never an
+    /// unreviewed cleanup suggestion. Cancellation does not call this method.
+    private func copyFallbackTranscript() {
+        guard !originalTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        writeClipboard(originalTranscript)
+    }
+
+    private func writeClipboard(_ text: String) {
+        guard !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        let success = NSPasteboard.general.setString(text, forType: .string)
+        announceResult(success ? "Copied to clipboard." : "Couldn't copy. Your transcript is still available in Hello.")
+    }
+
+    func copyFormValue(_ text: String) {
+        guard !isBusy else { return }
+        writeClipboard(text)
     }
 
     func copyTranscript(_ original: Bool = false) {
         let text = original ? originalTranscript : transcript
         guard !text.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        if NSPasteboard.general.setString(text, forType: .string) { resultMessage = "Copied. Paste wherever you need it." }
+        writeClipboard(text)
     }
 
     func clearTranscript() {
@@ -204,6 +365,7 @@ final class HelloController: ObservableObject {
     }
 
     func cancel() {
+        dismissResult()
         sessionIdentifier = UUID()
         recordingTask?.cancel()
         processingTask?.cancel()
@@ -215,12 +377,19 @@ final class HelloController: ObservableObject {
         dictation.cancelCurrentDictation(preserveDraftText: false)
         isProcessingTranscript = false
         destination = nil
+        formContext = nil
+        formCaptureError = nil
+        formPreview = []
+        formFields = []
+        formMessage = ""
+        contextIdentifier = UUID()
         resultMessage = "Cancelled."
     }
 
     func quit() {
         cancel()
         permissionRefreshTask?.cancel()
+        if let formInteractionMonitor { NSEvent.removeMonitor(formInteractionMonitor) }
         shortcutMonitor.stop()
         NSApp.terminate(nil)
     }

@@ -21,7 +21,7 @@ final class HelloStatusPanel {
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak controller] _ in
                 guard let self, let controller else { return }
-                if controller.dictation.isDictationInProgress || controller.isProcessingTranscript {
+                if controller.dictation.isDictationInProgress || controller.isProcessingTranscript || controller.isShowingResult {
                     if !panel.isVisible {
                         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
                         if let screen {
@@ -45,14 +45,14 @@ private struct HelloRecordingStatus: View {
             Image("HelloWaveform").resizable().scaledToFit()
                 .frame(width: 28, height: 22).foregroundStyle(.blue)
                 .scaleEffect(1 + controller.dictation.currentAudioPowerLevel * 0.3)
-                .accessibilityLabel(controller.dictation.isActivelyRecordingAudio ? "Microphone recording" : "Processing")
+                .accessibilityLabel(controller.dictation.isActivelyRecordingAudio ? "Microphone recording" : controller.isProcessingTranscript ? "Processing" : "Hello result")
             VStack(alignment: .leading, spacing: 3) {
                 Text("hello").font(.headline)
                 Text(controller.statusText).font(.caption).lineLimit(2)
             }
             Spacer()
-            Button(action: controller.cancel) { Image(systemName: "xmark") }
-                .accessibilityLabel("Cancel dictation").buttonStyle(HelloButtonStyle())
+            Button(action: { if controller.isBusy { controller.cancel() } else { controller.dismissResult() } }) { Image(systemName: "xmark") }
+                .accessibilityLabel(controller.isBusy ? "Cancel dictation" : "Dismiss result").buttonStyle(HelloButtonStyle())
         }
         .padding(16)
         .frame(width: 340, height: 76)

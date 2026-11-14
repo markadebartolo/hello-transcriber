@@ -14,6 +14,14 @@ November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon h
   duplicate final, cancelled fallback, cancel then late final, silence, timeout
   partial, engine failure, pre-cancelled entry and stale permission completion
   (related assertions are grouped into nine scenarios).
+- Form-policy/planner/write-sequencing regressions passed with fixtures: exact
+  Unicode names and amounts; no partial tokens, invented or duplicate IDs;
+  ambiguity/unmapped-content blocks automatic fill; stale/failed writes stop;
+  store=false/no tools; refused, malformed, incomplete and duplicate outputs fail.
+  These fixtures did not make an API call, capture a screen or fill a live form.
+- A timestamped Developer ID signed build with the visible launch window opened
+  successfully through native app control on this Mac. Its setup controls were
+  observable. This does not imply microphone or form behavior was validated.
 - The compile check does not launch the app or access the microphone. Xcode emitted
   host CoreSimulator service/version diagnostics; this native macOS build succeeded.
 

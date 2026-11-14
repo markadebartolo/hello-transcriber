@@ -5,15 +5,23 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
 
 - Hold Control + Option to dictate using Apple Speech; release to finish.
 - Live transcript, recording indicator/audio feedback, Escape/Cancel, Copy and Clear.
-- Insert only into the verified original supported text field and selection;
-  changed/unsupported fields offer Copy. Secure fields excluded. No Return/Send.
+- Normal dictation inserts only into the verified original supported text field and selection;
+  changed/unsupported fields automatically copy the original transcript and show
+  “Copied to clipboard.” without stealing focus. Secure fields excluded. No Return/Send.
 - Optional local punctuation suggestions are review-only. Word/name/case, number,
   sign and symbol changes are rejected; the original remains available.
 - Session generations prevent quick-release and stale-callback races. Capture is
   cancelled on failure/sleep/reconfiguration and bounded to 60 seconds.
+- Visible setup window at launch and Finder reopen; actual spoken-“hello” waveform logo.
+- Optional OpenAI voice form filling maps a dictation to one or many empty fields
+  without selecting them. Explicit cloud opt-in, window screenshot permission,
+  personal Keychain API key, original-window checks, exact transcript spans and
+  per-value Copy for ambiguity. Existing values and detected secure fields excluded.
+  Cloud inference is fallible; review forms before submitting. Partial writes stop
+  and report their verified count. No Submit/Send is generated.
 - Standalone universal app, scoped MIT license with Clicky/Farza attribution,
   documented provenance, Swift 6 checks and macOS CI. No private Dorsal services,
-  screenshots, analytics, embedded credentials or transcript history.
+  analytics, embedded credentials or transcript history.
 
 Requires macOS 14.2+. Optional cleanup needs macOS 26+ and an available Apple
 Intelligence model. Apple Speech requests on-device processing where supported;

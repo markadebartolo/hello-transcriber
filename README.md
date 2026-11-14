@@ -2,7 +2,9 @@
 
 A small, standalone macOS menu bar app for push-to-talk dictation. Hold **Control +
 Option**, speak, and release. Hello uses Apple Speech, then inserts into the
-original supported text field or leaves a transcript ready to copy.
+original supported text field or copies the transcript to your clipboard. Optional voice
+form filling can map a single dictation to one or several empty fields without
+selecting them first.
 
 **Release candidate:** source builds and regression tests have run locally. A public
 binary release is gated on signed-device smoke tests, Apple notarization, and
@@ -31,25 +33,67 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
 ## Behavior
 
-- Only enabled, non-secure text fields exposing a verifiable selection and value
+- In normal dictation mode, only enabled, non-secure text fields exposing a verifiable selection and value
   through Accessibility can receive text. Changing application, typing, clicking,
-  moving the selection, or editing the field invalidates insertion. Use **Copy**
-  when the field cannot be verified. Browser editors and custom controls may not
+  moving the selection, or editing the field invalidates insertion. Hello copies the original transcript automatically
+  when the field cannot be verified and shows **Copied to clipboard.** Browser editors and custom controls may not
   support AX selected-text replacement.
-- No Return, Send, keyboard paste, or automatic clipboard replacement is generated.
+- No Return, Send or keyboard paste is generated. If insertion is unavailable,
+  Hello replaces the clipboard with the original transcript and shows a brief
+  nonactivating **Copied to clipboard.** indicator. Cancel/Clear do not change it.
 - **Escape** or **Cancel** discards a recording/result in progress. Capture also
   stops on sleep, audio reconfiguration, permission loss, quit, or a 60-second limit.
-- The latest transcript stays in memory. **Copy** changes your clipboard; **Clear**
+- The latest transcript stays in memory. **Copy** and automatic fallback change your clipboard; **Clear**
   and quitting remove Hello's transcript. Clearing Hello does not clear a clipboard
-  you explicitly copied to. There is no transcript history or analytics.
+  Hello copied to. There is no transcript history or analytics.
 - Optional **Preview punctuation cleanup** uses Apple's on-device Foundation Models
-  when available. It disables automatic insertion and requires review before Copy.
+  when available. It disables automatic insertion. Hello copies the original transcript; review
+  the punctuation suggestion before choosing **Copy**.
   Names/case, words, numbers, signs and protected symbols must match, or Hello keeps
   the original. Punctuation can still change meaning. **Copy original** is available
   when a suggestion differs. A timeout keeps the original available.
 - Apple Speech requests on-device recognition when the recognizer supports it;
   otherwise Apple may process audio remotely. This is not an offline-only app.
   See [privacy](PRIVACY.md) for scope and limitations.
+
+## Voice form filling (optional)
+
+Open Hello → **Voice form filling (OpenAI)**. Enter your personal OpenAI API key in
+the secure field and choose **Save key**. The key stays in this Mac's Keychain and
+is sent only to OpenAI for authentication. Enable Screen Recording, then turn on
+**Send window to OpenAI and fill empty fields**. This switch defaults off each launch.
+Normal dictation and local cleanup do not require an API key or screen access.
+
+Open a form, leave its fields empty, and hold Control + Option. For example:
+“First name Maya, last name Chen, city Boston.” Release to map the answers. A single
+obvious empty message box can receive an entire utterance without being selected.
+When the model reports an unambiguous mapping with no unmapped content, Hello checks
+that values are verbatim transcript spans and that the original window and controls
+have not changed, then writes only to verified empty Accessibility text controls.
+It never presses Enter, Send or Submit. Websites may autosave when a value changes.
+
+Ambiguous mappings copy the original transcript automatically and show per-field
+suggestions with **Copy value**. Existing values
+are never replaced by form mode. Field labels in speech are routing cues; value
+spans preserve spelling, numbers and punctuation as Apple Speech transcribed them.
+This mode does not apply punctuation cleanup. It cannot recover a transcription
+mistake or guarantee a model's interpretation of intent; always review filled forms.
+
+A screenshot of the active window, empty-field labels/bounds, and the transcript
+are sent to the OpenAI Responses API using `gpt-4.1-mini`. API usage requires an
+account with access and available usage/billing. The screenshot can contain private
+page content beyond the intended fields. No screenshot is saved by Hello. Windows
+with detected password controls/Secure Input are refused; this is not a general
+screenshot redaction system. See [privacy](PRIVACY.md).
+
+Only visible, empty, writable text fields/areas supported by the app's Accessibility
+API are eligible. Dropdowns, checkboxes, canvas-only controls, offscreen fields,
+protected controls, and forms that cannot be fully inspected fall back to automatic clipboard copy.
+Typing, clicking, switching apps, scrolling/changing the page, cancellation and
+timeouts invalidate the destination. Some dynamic pages change too often for a
+stable snapshot. Multi-field writes are not atomic: if an app rejects a write or
+changes midway, Hello stops and reports how many writes it verified. Inspect all
+fields before retrying; Hello never attempts an automatic rollback.
 
 ## Requirements and build
 
@@ -59,8 +103,9 @@ model. Availability is checked at runtime. The minimum OS is a deployment target
 not a claim of microphone testing on every OS/hardware combination.
 
 Use Xcode **16+** with Swift 6 for the app and tests. Use Xcode 26+ to compile in
-Foundation Models support; older SDKs omit cleanup. No package downloads, API keys,
-Dorsal checkout, or private services are required.
+Foundation Models support; older SDKs omit cleanup. No package downloads, Dorsal
+checkout, or private services are required. An API key is needed only for optional
+OpenAI form filling, not to build or run normal dictation.
 
 ```sh
 git clone https://github.com/markadebartolo/hello-transcriber.git
@@ -69,7 +114,7 @@ bash hello/scripts/check.sh
 ```
 
 The check compiles both architectures without signing/launching the app, verifies
-six module checksums, and runs cleanup/lifecycle regressions. Open
+six module checksums, and runs cleanup/lifecycle/form and release-gate regressions. Open
 `hello/Hello.xcodeproj`, choose the Hello scheme and your own signing team for local
 development. Do not launch an unsigned CI product. macOS CI deliberately uploads
 no application artifacts. See [contributing](CONTRIBUTING.md) and

@@ -10,7 +10,7 @@ evidence = json.loads((root / f'{stage}-smoke.json').read_text())
 assert evidence['source_commit'] == manifest['source_commit']
 assert evidence['tester'].strip() and evidence['date'].strip() and evidence['system'].strip()
 required = ['identity', 'permissions', 'microphone', 'selection', 'focus', 'secure_field',
-            'cancellation', 'copy_clear', 'cleanup', 'service_failure', 'lifecycle']
+            'cancellation', 'copy_clear', 'cleanup', 'service_failure', 'lifecycle', 'forms']
 if stage == 'downloaded':
     assert evidence['artifact_sha256'] == manifest['sha256']
     required = ['launch', 'microphone', 'insertion', 'cancellation']

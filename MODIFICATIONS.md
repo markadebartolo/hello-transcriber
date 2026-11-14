@@ -48,3 +48,23 @@ signing team, packages, sibling source tree, secrets, analytics or private servi
 Release tooling derives the team from a verified identity, requires observed smoke
 evidence before notarization/publication, checks hardened runtime/entitlements,
 verifies tag-to-source identity, and rechecks the downloaded signed artifact.
+
+## November 14, 2026 — visible window and optional form filling
+
+Added a launch/reopen window because a menu-only app was not discoverable on the
+validation Mac. Added new Hello-only form modules for Keychain storage, bounded
+Accessibility snapshots, single-window ScreenCaptureKit images, OpenAI structured
+field mapping and conservative verified writes. Normal insertion remains selection
+based; form mode explicitly opts into empty-field AX value writes. No Dorsal module
+changed for this feature. Original-module checksums/provenance remain intact.
+
+Form regression fixtures cover invented/duplicate IDs, changed names/amounts, cut
+tokens, ambiguous/unmapped output, interrupted writes, malformed/refused/incomplete
+responses and request privacy flags. They are not claims of live API accuracy,
+actual screen permissions or cross-application insertion. A new required `forms`
+release smoke gate prevents publishing without those observed checks.
+
+At the user's request, failed/no-destination insertion now automatically copies
+the original transcript and displays a three-second nonactivating result. Cancel,
+Clear and empty results never trigger that fallback. Cleanup suggestions still
+require review; automatic fallback always uses the original speech transcript.

@@ -11,7 +11,7 @@ Required checks (the IDs are release-gate keys):
   leaves app running, Finder reopen restores window; no effect on existing Dorsal grants.
 - [ ] **permissions:** fresh Hello identity prompts once for Microphone and Speech;
   deny/recover each through Settings. Accessibility/Input Monitoring denial is
-  visible; Retry works after grants/relaunch. No Screen Recording/Camera prompt.
+  visible; Retry works after grants/relaunch. No Screen Recording prompt in normal mode; Camera is never requested.
 - [ ] **microphone:** actual spoken test in TextEdit; recording HUD does not take
   focus; first words survive; audio meter responds; release stops microphone.
 - [ ] **selection:** replace only a selected word in TextEdit; test caret insertion
@@ -24,7 +24,9 @@ Required checks (the IDs are release-gate keys):
 - [ ] **cancellation:** quick tap/release, repeated holds, Escape/Cancel during
   startup, recording, finalization and cleanup. No later insertion or hot mic.
 - [ ] **copy_clear:** transcript preview; Copy; Copy original where different;
-  Clear removes text. No automatic clipboard replacement or Return/Send.
+  Clear removes text. No destination or unsafe/unsupported field automatically
+  copies the original transcript and shows “Copied to clipboard.” without taking
+  focus. Cancel/Clear and empty speech do not alter the clipboard; no Return/Send.
 - [ ] **cleanup:** verify availability indication. When available, run real local
   cleanup with names/numbers/currencies/signs. Review-only, no automatic insertion;
   cancellation/timeout leaves safe state. If unavailable, confirm disabled UI and
@@ -32,6 +34,15 @@ Required checks (the IDs are release-gate keys):
 - [ ] **service_failure:** unavailable speech service/offline failure is visible,
   stops capture and allows retry. Record whether local speech actually works
   offline; do not infer this from supportsOnDeviceRecognition alone.
+- [ ] **forms:** use a disposable local form and a test API account. Default off;
+  no screen/API access in normal mode. Save/check/remove key without logs; deny and
+  recover screen access. Speak single-field intent without focus, then multiple
+  labeled answers; observe exact values in correct empty fields and no submission.
+  Verify ambiguity/duplicate labels, existing values, secure controls, unsupported
+  controls, incomplete responses, API failures and timeout offer Copy. Change page,
+  scroll, type/click, switch windows and cancel during capture/request; no late
+  writes. Observe partial-write reporting using a form that changes after one fill.
+  Inspect network request scope with test content only. No real private page data.
 - [ ] **lifecycle:** sleep/wake, audio input change, quit during recording, retry
   after wake. Check light/dark layout, cancel button/VoiceOver labels, and secondary
   display if one is present. Record unavailable hardware scenarios as limitations.

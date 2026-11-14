@@ -7,7 +7,8 @@ struct HelloApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            HelloPanel(controller: appDelegate.controller)
+            ScrollView { HelloPanel(controller: appDelegate.controller) }
+                .frame(width: 420, height: min(720, (NSScreen.main?.visibleFrame.height ?? 900) - 120))
         } label: {
             HelloMenuBarLabel(controller: appDelegate.controller)
         }
@@ -63,6 +64,8 @@ final class HelloAppDelegate: NSObject, NSApplicationDelegate {
 private struct HelloPanel: View {
     @ObservedObject var controller: HelloController
     @AppStorage("Hello.didReviewPermissions") private var didReviewPermissions = false
+    @State private var apiKey = ""
+    @State private var showsFormSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -140,16 +143,57 @@ private struct HelloPanel: View {
                 }
             }
 
+            if !controller.formMessage.isEmpty {
+                Text(controller.formMessage).font(.caption).foregroundStyle(.secondary)
+            }
+            if !controller.formPreview.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("FORM VALUES").font(.caption).foregroundStyle(.secondary)
+                    ForEach(controller.formPreview) { assignment in
+                        VStack(alignment: .leading, spacing: 4) {
+                            let field = controller.formFields.first { $0.id == assignment.fieldID }
+                            Text(field?.label.isEmpty == false ? field!.label : assignment.fieldID).font(.caption).bold()
+                            Text(assignment.text).textSelection(.enabled)
+                            Button("Copy value") { controller.copyFormValue(assignment.text) }.disabled(controller.isBusy)
+                        }
+                    }
+                }
+            }
+
             Divider()
+            DisclosureGroup("Voice form filling (OpenAI)", isExpanded: $showsFormSettings) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("When enabled, each dictation sends your transcript, a screenshot of the active window, and empty-field labels to OpenAI. The screenshot may contain other private page content. API usage is billed to your account.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Send window to OpenAI and fill empty fields", isOn: $controller.formMode)
+                        .disabled(controller.isBusy).helloPointer()
+                    Text("Speak one answer or several labeled answers. No field needs to be selected. Clear matches fill automatically; uncertain matches copy the original transcript to the clipboard. Existing values stay untouched. Screenshots are not saved by Hello. Switching apps, typing, or clicking cancels the destination.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    SecureField("OpenAI API key", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("Save key") { controller.saveAPIKey(apiKey); apiKey = "" }
+                            .disabled(apiKey.isEmpty || controller.isBusy)
+                        Button("Check saved key") { controller.checkAPIKey() }.disabled(controller.isBusy)
+                        Button("Remove key") { controller.removeAPIKey() }.disabled(controller.isBusy)
+                    }
+                    if controller.hasAPIKey { Text("API key is available in Keychain.").font(.caption) }
+                    if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
+                    Button("Enable Screen Recording") { controller.requestScreenAccess() }.disabled(controller.isBusy)
+                    Text("Screen Recording is needed only for this optional mode. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding(.top, 8)
+            }
+
             VStack(alignment: .leading, spacing: 10) {
-                Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert).helloPointer()
+                Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert).disabled(controller.formMode || controller.isBusy).helloPointer()
                 Toggle("Preview punctuation cleanup", isOn: $controller.cleanPunctuation)
-                    .disabled(!OnDeviceModel.isAvailable).helloPointer()
+                    .disabled(!OnDeviceModel.isAvailable || controller.formMode || controller.isBusy).helloPointer()
                 Text(OnDeviceModel.isAvailable
                      ? "Cleanup is review-only and disables automatic insertion. Check the suggestion before copying; punctuation can change meaning."
                      : "Optional cleanup needs Apple Intelligence on a supported Mac with macOS 26 or later.")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Apple Speech uses on-device recognition where supported; otherwise audio may be sent to Apple. Hello keeps only the latest transcript in memory. Password fields are excluded. Some apps require Copy and Paste.")
+                Text("Apple Speech uses on-device recognition where supported; otherwise audio may be sent to Apple. Hello keeps only the latest transcript in memory. Password fields are excluded. When no field can be filled, Hello copies the original transcript to your clipboard.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             HStack {
