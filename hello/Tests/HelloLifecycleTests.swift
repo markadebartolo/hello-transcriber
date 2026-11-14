@@ -62,6 +62,16 @@ struct HelloLifecycleTests {
             await manager.startPushToTalkFromKeyboardShortcut(currentDraftText: "", updateDraftText: { _ in }, submitDraftText: { delivered.append($0) })
         }
         func drain() async { try? await Task.sleep(for: .milliseconds(80)) }
+        func waitUntil(_ description: String, _ condition: () -> Bool) async {
+            let deadline = Date().addingTimeInterval(5)
+            while !condition(), Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            precondition(condition(), "Timed out waiting for " + description)
+        }
+        func requireCalls(_ count: Int) {
+            precondition(provider.calls.count == count, "Expected \(count) starts; got \(provider.calls.count). Busy=\(manager.isDictationInProgress), error=\(manager.lastErrorMessage ?? "none")")
+        }
 
         // Quick release while provider startup is suspended, then a new session.
         provider.pauseNextStart = true
@@ -73,6 +83,7 @@ struct HelloLifecycleTests {
         await oldStart.value
         precondition(provider.calls[0].session.cancelled)
         precondition(capture.running && manager.isActivelyRecordingAudio)
+        requireCalls(2)
         provider.calls[0].partial("OLD PARTIAL")
         provider.calls[0].final("OLD FINAL")
         provider.calls[0].error(TestError.failed)
@@ -83,11 +94,12 @@ struct HelloLifecycleTests {
         manager.stopPushToTalkFromKeyboardShortcut()
         provider.calls[1].final("current")
         provider.calls[1].final("duplicate")
-        await drain()
+        await waitUntil("first final", { !manager.isDictationInProgress })
         precondition(delivered == ["current"] && !capture.running && !manager.isDictationInProgress)
 
         // Cancel after stop but before fallback; old fallback cannot finalize new work.
         await start()
+        requireCalls(3)
         provider.calls[2].partial("cancel me")
         await drain()
         manager.stopPushToTalkFromKeyboardShortcut()
@@ -96,15 +108,18 @@ struct HelloLifecycleTests {
         await drain()
         precondition(capture.running && delivered == ["current"])
         manager.cancelCurrentDictation(preserveDraftText: false)
+        requireCalls(4)
         provider.calls[3].final("after cancel")
-        await drain()
+        await waitUntil("first final", { !manager.isDictationInProgress })
         precondition(delivered == ["current"] && !capture.running)
 
         // Empty audio does not submit. Partial text survives a final-result timeout.
-        await start(); manager.stopPushToTalkFromKeyboardShortcut(); await drain()
+        await start(); requireCalls(5); manager.stopPushToTalkFromKeyboardShortcut()
+        await waitUntil("empty fallback", { !manager.isDictationInProgress })
         precondition(delivered == ["current"])
-        await start(); provider.calls[5].partial("fallback")
-        await drain(); manager.stopPushToTalkFromKeyboardShortcut(); await drain()
+        await start(); requireCalls(6); provider.calls[5].partial("fallback")
+        await drain(); manager.stopPushToTalkFromKeyboardShortcut()
+        await waitUntil("partial fallback", { !manager.isDictationInProgress })
         precondition(delivered == ["current", "fallback"])
 
         // Engine failure must cancel the provider and leave no hot microphone.
