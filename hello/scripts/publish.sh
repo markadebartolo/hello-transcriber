@@ -34,7 +34,7 @@ info=plistlib.load(open(app/'Contents/Info.plist','rb'))
 assert info['CFBundleShortVersionString']==manifest['version']
 assert str(info['CFBundleVersion'])==manifest['build']
 for arch, checksum in manifest['app_cdhashes'].items():
-    result=subprocess.run(['codesign','-dv','--arch',arch,str(app)],capture_output=True,text=True,check=True)
+    result=subprocess.run(['codesign','-dv','--verbose=4','--arch',arch,str(app)],capture_output=True,text=True,check=True)
     assert re.search(r'^CDHash=(.+)$',result.stderr,re.M)[1]==checksum, 'Artifact differs from smoke-tested app'
 PYCODE
 xcrun stapler validate "$CHECK/Hello.app"

@@ -38,7 +38,7 @@ import datetime, json, pathlib, re, subprocess, sys
 out, source, version, build, team = sys.argv[1:]; root = pathlib.Path(out)
 hashes = {}
 for arch in ('arm64', 'x86_64'):
-    result = subprocess.run(['codesign', '-dv', '--arch', arch, str(root/'Hello.app')], capture_output=True, text=True, check=True)
+    result = subprocess.run(['codesign', '-dv', '--verbose=4', '--arch', arch, str(root/'Hello.app')], capture_output=True, text=True, check=True)
     hashes[arch] = re.search(r'^CDHash=(.+)$', result.stderr, re.M)[1]
 (root/'release-manifest.json').write_text(json.dumps(dict(product='Hello', version=version, build=build,
     source_commit=source, bundle_identifier='com.markdebartolo.hello', team_identifier=team,
@@ -56,7 +56,7 @@ elif [[ "$MODE" == notarize ]]; then
 import json, pathlib, re, subprocess, sys
 root = pathlib.Path(sys.argv[1]); manifest = json.loads((root/'release-manifest.json').read_text())
 for arch, checksum in manifest['app_cdhashes'].items():
-    result = subprocess.run(['codesign','-dv','--arch',arch,str(root/'Hello.app')], capture_output=True,text=True,check=True)
+    result = subprocess.run(['codesign','-dv','--verbose=4','--arch',arch,str(root/'Hello.app')], capture_output=True,text=True,check=True)
     assert re.search(r'^CDHash=(.+)$', result.stderr, re.M)[1] == checksum, 'App changed after smoke test'
 PY
   ditto -c -k --keepParent "$OUT/Hello.app" "$OUT/notary-upload.zip"
