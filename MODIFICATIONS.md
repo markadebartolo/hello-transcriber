@@ -68,3 +68,8 @@ At the user's request, failed/no-destination insertion now automatically copies
 the original transcript and displays a three-second nonactivating result. Cancel,
 Clear and empty results never trigger that fallback. Cleanup suggestions still
 require review; automatic fallback always uses the original speech transcript.
+
+The Xcode 16/macOS 15 CI job exposed missing ScreenCaptureKit Sendable annotations
+in that SDK. The import is explicitly preconcurrency; shareable-content snapshots
+remain read-only in the main-actor form context. Newer SDK compilation and older
+SDK CI are both required.

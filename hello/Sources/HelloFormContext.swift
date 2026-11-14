@@ -1,7 +1,9 @@
 import AppKit
 @preconcurrency import ApplicationServices
 import Carbon
-import ScreenCaptureKit
+// Xcode 16 lacks Sendable annotations for the shareable-content snapshot.
+// Received objects are read only, confined to this main-actor context.
+@preconcurrency import ScreenCaptureKit
 
 /// Snapshot of a single foreground window. Never clicks screen coordinates or
 /// changes focus to infer an editable destination. Unknown/secure controls fail closed.
