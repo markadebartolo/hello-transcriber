@@ -163,7 +163,7 @@ private struct HelloPanel: View {
             }
 
             Divider()
-            DisclosureGroup("Voice form filling", isExpanded: $showsFormSettings) {
+            DisclosureGroup("Form filling", isExpanded: $showsFormSettings) {
                 VStack(alignment: .leading, spacing: 10) {
                     Picker("AI provider", selection: $controller.formProvider) {
                         ForEach(HelloAIProvider.allCases) { provider in
@@ -187,8 +187,8 @@ private struct HelloPanel: View {
                     }
                     if controller.hasAPIKey { Text("\(controller.formProvider.displayName) key is available in Keychain.").font(.caption) }
                     if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
-                    Button("Enable Screen Recording") { controller.requestScreenAccess() }.disabled(controller.isBusy)
-                    Text("Screen Recording is needed only for this optional mode. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
+                    Button("Allow form filling screenshots") { controller.requestScreenAccess() }.disabled(controller.isBusy)
+                    Text("Form filling uses a screenshot of the active window to identify text boxes. macOS calls this permission Screen Recording. Hello does not continuously record your screen or save screenshots. Ordinary dictation does not need this permission. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(.top, 8)
             }

@@ -57,7 +57,7 @@ final class HelloFormContext {
     }
 
     func screenshot() async throws -> Data {
-        guard CGPreflightScreenCaptureAccess() else { throw Self.failure("Enable Screen Recording in Hello before using form filling.") }
+        guard CGPreflightScreenCaptureAccess() else { throw Self.failure("Open Hello → Form filling → Allow form filling screenshots. macOS calls this permission Screen Recording.") }
         guard isCurrent() else { throw Self.failure("The form changed. Use Copy or dictate again.") }
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         try Task.checkCancellation()

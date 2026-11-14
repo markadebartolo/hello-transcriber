@@ -56,13 +56,16 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
   otherwise Apple may process audio remotely. This is not an offline-only app.
   See [privacy](PRIVACY.md) for scope and limitations.
 
-## Voice form filling (optional)
+## Form filling (optional)
 
-Open Hello → **Voice form filling**. Choose **OpenAI**, **Anthropic**, or
+Open Hello → **Form filling**. Choose **OpenAI**, **Anthropic**, or
 **OpenRouter**, enter that service's API key in the secure field, and choose
 **Save key**. Each provider has its own local Keychain entry. The key is sent only
 to the selected service's fixed HTTPS API endpoint; Hello never tries it against
-another provider. Enable Screen Recording, then turn on **Send window to [provider]
+another provider. Choose **Allow form filling screenshots**. macOS calls this
+permission **Screen Recording**; Hello uses it to capture the active window so the
+model can identify text boxes. Hello does not continuously record the screen or
+save screenshots. Then turn on **Send window to [provider]
 and fill empty fields**. Switching providers turns this opt-in off again. This switch defaults off each launch.
 Normal dictation and local cleanup do not require an API key or screen access.
 

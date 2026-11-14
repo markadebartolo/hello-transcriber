@@ -186,7 +186,7 @@ final class HelloController: ObservableObject {
             return
         }
         if formMode && !CGPreflightScreenCaptureAccess() {
-            resultMessage = "Open Hello and enable Screen Recording for form filling."
+            resultMessage = "Open Hello → Form filling → Allow form filling screenshots. macOS calls this permission Screen Recording."
             return
         }
         if formMode && HelloAPIKey.read(for: formProvider) == nil {
