@@ -5,12 +5,41 @@ import Carbon
 /// Some native text views omit AXEnabled. A writable selection is the required
 /// capability; an explicit disabled flag or a failed AX request still rejects it.
 enum HelloTextFieldEligibility {
+    static func writeAttribute(original: String, range: CFRange, valueWritable: Bool) -> String {
+        // Empty rich-text editors can expose AXSelectedText but ignore writes to
+        // it. Setting AXValue is safe only when there is no existing text to lose.
+        original.isEmpty && range.location == 0 && range.length == 0 && valueWritable
+            ? kAXValueAttribute : kAXSelectedTextAttribute
+    }
+
     static func accepts(role: String?, subrole: String?, enabled: Bool?,
                         enabledError: AXError, selectionWritable: Bool) -> Bool {
         guard [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? ""),
               subrole != kAXSecureTextFieldSubrole, selectionWritable else { return false }
         if enabledError == .success { return enabled == true }
         return enabledError == .attributeUnsupported || enabledError == .noValue
+    }
+}
+
+/// AX setters may return before an application's accessibility value refreshes.
+/// Poll only the readback: retrying the write could insert the text twice.
+@MainActor
+enum HelloInsertionVerification {
+    enum Outcome { case verified, unverified, interrupted }
+
+    static func waitForValue(_ expected: String, read: () -> String?, isCurrent: () -> Bool,
+                             pause: () async throws -> Void = { try await Task.sleep(for: .milliseconds(50)) }) async -> Outcome {
+        let deadline = ContinuousClock.now + .milliseconds(500)
+        for attempt in 0..<10 {
+            guard !Task.isCancelled, isCurrent() else { return .interrupted }
+            if read() == expected {
+                return !Task.isCancelled && isCurrent() ? .verified : .interrupted
+            }
+            guard attempt < 9, ContinuousClock.now < deadline else { return .unverified }
+            do { try await pause() }
+            catch { return .interrupted }
+        }
+        return .unverified
     }
 }
 
@@ -67,20 +96,36 @@ struct HelloTextDestination {
         )
     }
 
-    /// Replace only the verified selection, never the field's entire value.
-    func insert(_ text: String) -> Result<Void, InsertionFailure> {
+    /// Replace the verified selection, or set a verified completely empty field.
+    func insert(_ text: String, isCurrent: () -> Bool) async -> Result<Void, InsertionFailure> {
         guard !text.isEmpty else { return .failure(.writeFailed) }
+        guard !Task.isCancelled, isCurrent() else { return .failure(.changed) }
         if let failure = validationFailure() { return .failure(failure) }
+        var valueSettable = DarwinBoolean(false)
+        let canSetValue = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &valueSettable) == .success && valueSettable.boolValue
+        let writeAttribute = HelloTextFieldEligibility.writeAttribute(original: originalValue,
+            range: selectedRange, valueWritable: canSetValue)
         var isSettable = DarwinBoolean(false)
-        guard AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &isSettable) == .success,
+        guard AXUIElementIsAttributeSettable(element, writeAttribute as CFString, &isSettable) == .success,
               isSettable.boolValue else { return .failure(.notWritable) }
         // Recheck immediately before writing: querying another app can take time.
         if let failure = validationFailure() { return .failure(failure) }
-        guard AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success else { return .failure(.writeFailed) }
+        guard !Task.isCancelled, isCurrent() else { return .failure(.changed) }
+        guard AXUIElementSetAttributeValue(element, writeAttribute as CFString, text as CFString) == .success else { return .failure(.writeFailed) }
         let expected = (originalValue as NSString).replacingCharacters(
             in: NSRange(location: selectedRange.location, length: selectedRange.length), with: text)
-        guard Self.attribute(kAXValueAttribute, of: element) as? String == expected else { return .failure(.unverified) }
-        return .success(())
+        let verification = await HelloInsertionVerification.waitForValue(expected,
+            read: { Self.attribute(kAXValueAttribute, of: element) as? String },
+            isCurrent: { isCurrent() && hasOriginalFocus() })
+        return verification == .verified ? .success(()) : .failure(.unverified)
+    }
+
+    private func hasOriginalFocus() -> Bool {
+        guard AXIsProcessTrusted(), !IsSecureEventInputEnabled(),
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == applicationIdentifier,
+              let current = Self.focusedElement(), CFEqual(element, current),
+              Self.isEditableNonSecureElement(current) else { return false }
+        return true
     }
 
     private func validationFailure() -> InsertionFailure? {

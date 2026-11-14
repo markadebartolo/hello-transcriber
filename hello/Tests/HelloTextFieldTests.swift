@@ -2,7 +2,7 @@ import ApplicationServices
 
 @main
 struct HelloTextFieldTests {
-    static func main() {
+    @MainActor static func main() async {
         func accepts(role: String? = kAXTextAreaRole, subrole: String? = nil,
                      enabled: Bool? = true, error: AXError = .success,
                      writable: Bool = true) -> Bool {
@@ -24,5 +24,47 @@ struct HelloTextFieldTests {
         precondition(!accepts(subrole: kAXSecureTextFieldSubrole))
         precondition(!accepts(subrole: kAXSecureTextFieldSubrole, enabled: nil, error: .attributeUnsupported))
         print("Hello text-field eligibility: 13 writable, omitted, disabled, secure and failed-query cases passed")
+        precondition(HelloTextFieldEligibility.writeAttribute(original: "", range: CFRange(location: 0, length: 0), valueWritable: true) == kAXValueAttribute)
+        precondition(HelloTextFieldEligibility.writeAttribute(original: "", range: CFRange(location: 0, length: 0), valueWritable: false) == kAXSelectedTextAttribute)
+        for original in ["existing draft", " ", "\n", "😊"] {
+            precondition(HelloTextFieldEligibility.writeAttribute(original: original, range: CFRange(location: 0, length: original.utf16.count), valueWritable: true) == kAXSelectedTextAttribute,
+                         "Never replace an existing field value, even when all its text is selected")
+        }
+
+        var reads = 0
+        var pauses = 0
+        var outcome = await HelloInsertionVerification.waitForValue("inserted", read: {
+            reads += 1
+            return reads < 3 ? "original" : "inserted"
+        }, isCurrent: { true }, pause: { pauses += 1 })
+        precondition(outcome == .verified && reads == 3 && pauses == 2,
+                     "Delayed accessibility readback must verify without issuing another write")
+        reads = 0
+        outcome = await HelloInsertionVerification.waitForValue("inserted", read: {
+            reads += 1; return "inserted"
+        }, isCurrent: { true }, pause: { preconditionFailure("Immediate success must not wait") })
+        precondition(outcome == .verified && reads == 1)
+        reads = 0
+        outcome = await HelloInsertionVerification.waitForValue("inserted", read: {
+            reads += 1; return nil
+        }, isCurrent: { true }, pause: {})
+        precondition(outcome == .unverified && reads == 10, "An unreadable field must time out")
+        var current = true
+        reads = 0
+        outcome = await HelloInsertionVerification.waitForValue("inserted", read: {
+            reads += 1; return "original"
+        }, isCurrent: { current }, pause: { current = false })
+        precondition(outcome == .interrupted && reads == 1, "Stop polling on focus or context changes")
+        reads = 0
+        outcome = await HelloInsertionVerification.waitForValue("inserted", read: {
+            reads += 1; return "different text"
+        }, isCurrent: { true }, pause: { throw CancellationError() })
+        precondition(outcome == .interrupted && reads == 1)
+        current = true
+        outcome = await HelloInsertionVerification.waitForValue("inserted", read: {
+            current = false; return "inserted"
+        }, isCurrent: { current }, pause: {})
+        precondition(outcome == .interrupted, "A matching value cannot override a changed context")
+        print("Hello insertion verification: immediate/delayed readback, timeout, focus change and cancellation passed")
     }
 }

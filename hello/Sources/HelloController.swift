@@ -28,8 +28,10 @@ final class HelloController: ObservableObject {
     @Published var formProvider = HelloAIProvider(rawValue: UserDefaults.standard.string(forKey: "Hello.formProvider") ?? "") ?? .openAI {
         didSet {
             guard oldValue != formProvider else { return }
-            cancel()
+            if sessionUsesForms && isBusy { cancel() }
             formMode = false // A different data recipient requires a fresh opt-in.
+            formPreview = []
+            formMessage = ""
             hasAPIKey = false
             keyMessage = ""
             UserDefaults.standard.set(formProvider.rawValue, forKey: "Hello.formProvider")
@@ -37,7 +39,7 @@ final class HelloController: ObservableObject {
     }
     private var sessionProvider = HelloAIProvider.openAI
     @Published var formMode = false {
-        didSet { if oldValue != formMode { cancel() } }
+        didSet { if oldValue != formMode && isBusy { cancel() } }
     }
     @Published private(set) var hasAPIKey = false
     @Published private(set) var formPreview: [HelloFormAssignment] = []
@@ -81,7 +83,9 @@ final class HelloController: ObservableObject {
         if dictation.isPreparingToRecord { return "Starting microphone…" }
         if dictation.isActivelyRecordingAudio { return "Listening — release to finish" }
         if dictation.isFinalizingTranscript { return "Transcribing…" }
-        if isProcessingTranscript { return sessionUsesForms ? "Matching your words to the form…" : "Tidying punctuation…" }
+        if isProcessingTranscript {
+            return sessionUsesForms ? "Matching your words to the form…" : cleanPunctuation ? "Tidying punctuation…" : "Inserting…"
+        }
         return dictation.lastErrorMessage ?? resultMessage
     }
 
@@ -154,7 +158,8 @@ final class HelloController: ObservableObject {
     }
 
     func removeAPIKey() {
-        cancel()
+        guard !isBusy else { return }
+        formMode = false
         if HelloAPIKey.remove(for: formProvider) { hasAPIKey = false; keyMessage = "Key removed." }
         else { keyMessage = "Keychain could not remove the key." }
     }
@@ -224,11 +229,14 @@ final class HelloController: ObservableObject {
             resultMessage = "Open Hello and enable microphone and speech recognition first."
             return
         }
-        if formMode && !CGPreflightScreenCaptureAccess() {
+        let missingFormAccess = HelloFormPrerequisites.missing(enabled: formMode,
+            screenAllowed: { CGPreflightScreenCaptureAccess() },
+            keyAvailable: { HelloAPIKey.read(for: formProvider) != nil })
+        if missingFormAccess == .screenAccess {
             resultMessage = "Open Hello → Form filling → Allow form filling screenshots. macOS calls this permission Screen Recording."
             return
         }
-        if formMode && HelloAPIKey.read(for: formProvider) == nil {
+        if missingFormAccess == .apiKey {
             resultMessage = "Add your \(formProvider.displayName) API key in Hello first."
             return
         }
@@ -291,14 +299,14 @@ final class HelloController: ObservableObject {
             return
         }
         let shouldClean = cleanPunctuation && OnDeviceModel.isAvailable
-        isProcessingTranscript = shouldClean
+        let shouldInsert = automaticallyInsert && !shouldClean
+        isProcessingTranscript = shouldClean || shouldInsert
         let capturedDestination = destination
         let capturedRevision = contextIdentifier
         let preparedText = personalizedTranscript
         destination = nil
         // Punctuation can alter meaning even with identical words. Cleanup is
         // review-only: never insert an unreviewed model proposal into another app.
-        let shouldInsert = automaticallyInsert && !shouldClean
         cleanupTimeoutTask?.cancel()
         if shouldClean {
             cleanupTimeoutTask = Task { [weak self] in
@@ -319,9 +327,13 @@ final class HelloController: ObservableObject {
             guard !Task.isCancelled, sessionIdentifier == identifier else { return }
             transcript = HelloTranscriptPolicy.acceptedCleanup(candidate, original: preparedText)
             cleanupTimeoutTask?.cancel()
-            isProcessingTranscript = false
             if shouldInsert, contextIdentifier == capturedRevision, let capturedDestination {
-                switch capturedDestination.insert(transcript) {
+                let insertion = await capturedDestination.insert(transcript, isCurrent: {
+                    self.sessionIdentifier == identifier && self.contextIdentifier == capturedRevision
+                })
+                guard !Task.isCancelled, sessionIdentifier == identifier else { return }
+                isProcessingTranscript = false
+                switch insertion {
                 case .success:
                     insertionMessage = ""
                     announceResult("Inserted into \(capturedDestination.applicationName).")
@@ -329,10 +341,17 @@ final class HelloController: ObservableObject {
                         observeSpellingCorrections(watch)
                     }
                 case .failure(let error):
-                    insertionMessage = error.localizedDescription
-                    copyFallbackTranscript()
+                    insertionMessage = "\(capturedDestination.applicationName): \(error.localizedDescription)"
+                    if error == .unverified {
+                        // A successful setter can still be pending or partially
+                        // applied. Do not encourage an automatic duplicate paste.
+                        announceResult("Check text field")
+                    } else {
+                        copyFallbackTranscript()
+                    }
                 }
             } else {
+                isProcessingTranscript = false
                 if shouldClean { insertionMessage = "Punctuation cleanup is review-only. Review the suggestion in Hello." }
                 else if !automaticallyInsert { insertionMessage = "Automatic insertion is turned off." }
                 else if contextIdentifier != capturedRevision { insertionMessage = "The field, selection, or app changed before insertion." }

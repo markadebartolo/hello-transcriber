@@ -23,7 +23,7 @@ final class HelloStatusPanel {
                 guard let self, let controller else { return }
                 if controller.recordingFeedback.isVisible {
                     let hasCaption = !controller.liveCaption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let size = NSSize(width: hasCaption ? (controller.recordingFeedback.showsLiveWaveform ? 144 : 168) : controller.recordingFeedback.showsLiveWaveform ? 96 : 168,
+                    let size = NSSize(width: hasCaption ? 192 : controller.recordingFeedback.showsLiveWaveform ? 96 : 168,
                                       height: hasCaption ? 60 : 34)
                     if !panel.isVisible {
                         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
@@ -53,30 +53,23 @@ private struct HelloRecordingStatus: View {
 
     var body: some View {
         let caption = controller.liveCaption.trimmingCharacters(in: .whitespacesAndNewlines)
-        let word = HelloLiveWord(caption)
+        let preview = HelloLiveCaption(caption)
         VStack(spacing: 2) {
             if !caption.isEmpty {
-                HStack(spacing: 0) {
-                    Text(word.before).foregroundColor(.black)
-                        .frame(width: 42, alignment: .trailing)
-                    Text(word.focus).foregroundColor(Color(red: 0.75, green: 0, blue: 0))
-                        .frame(width: 10)
-                    Text(word.after).foregroundColor(.black)
-                        .frame(width: 76, alignment: .leading)
-                }
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                Text(preview.text)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .truncationMode(.head)
                     .padding(.horizontal, 8)
-                    .frame(width: 144, height: 24)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 8))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Latest recognized word, may change: \(word.word)")
-                    .help("Newest recognized word. Recognition may revise earlier words; open Hello for the full transcript.")
+                    .frame(width: 192, height: 24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityLabel("Live transcript, may change: \(preview.text)")
+                    .help("Latest three recognized words. Open Hello for the full transcript.")
             }
             recordingPill
         }
-        .frame(width: controller.recordingFeedback.showsLiveWaveform ? (caption.isEmpty ? 96 : 144) : 168,
+        .frame(width: caption.isEmpty ? (controller.recordingFeedback.showsLiveWaveform ? 96 : 168) : 192,
                height: caption.isEmpty ? 34 : 60, alignment: .bottom)
     }
 

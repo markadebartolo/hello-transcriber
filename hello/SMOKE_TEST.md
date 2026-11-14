@@ -18,14 +18,18 @@ Required checks (the IDs are release-gate keys):
   its waveform follows real audio. If capture stops early, it shows Microphone
   stopped rather than disappearing or claiming to listen. Release shows
   Transcribing until finalization ends. Cancel while held leaves a stopped state.
-  One newest recognized word appears above the small waveform and updates
-  immediately, with one red focus letter at a fixed position and the other letters
-  black on white. Check accented words and long words in light/dark mode. The full
+  At most the latest three recognized words appear above the small waveform and
+  update immediately in the normal theme text color. Check accented words and
+  long words in light/dark mode. The full
   text stays in Hello; revisions may skip earlier words in this compact preview.
   The caption does not take focus or insert partial text.
 - [ ] **selection:** replace only a selected word in TextEdit; test caret insertion
   and Unicode/surrogate text. Try Safari textarea and Notes. Unsupported fields
   offer Copy. Record which app/version genuinely supports AX insertion.
+  Test an empty rich-text composer as well as an existing draft. Empty writable
+  fields may use AXValue; existing text must only replace the captured selection.
+  Delayed readback must not duplicate insertion. An accepted but unverified write
+  shows Check text field, preserves the clipboard and retains manual Copy.
 - [ ] **focus:** switch field/app or selection, type/click during capture and
   cleanup, including switching away and back. No stale or wrong-field insertion.
 - [ ] **secure_field:** password field and Secure Input never receive automatic
@@ -52,7 +56,10 @@ Required checks (the IDs are release-gate keys):
 - [ ] **forms:** use a disposable local form and a test API account. Check provider selection, isolated key save/read/remove,
   and fresh opt-in after switching provider. Exercise each available service with
   disposable data; explicitly record any service not live-tested, never invent a pass. Default off;
-  no screen/API access in normal mode. Save/check/remove key without logs; deny and
+  no screen/API access in normal mode. Save/check/remove key without logs;
+  verify normal dictation still works with form mode off, a missing/invalid key
+  and denied screenshot permission. Provider/key changes while idle must preserve
+  the normal transcript. Deny and
   recover screen access. Speak single-field intent without focus, then multiple
   labeled answers; observe exact values in correct empty fields and no submission.
   Verify ambiguity/duplicate labels, existing values, secure controls, unsupported

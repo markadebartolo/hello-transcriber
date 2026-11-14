@@ -35,8 +35,8 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
 - A persistent indicator shows when Control + Option are held. While listening,
   its small waveform follows microphone levels, including quiet pauses. Live
-  recognition shows one newest word in a 144 × 24-point preview above it. A red
-  focus letter stays at a fixed position; the other letters are black on white.
+  recognition shows at most the latest three words in a 192 × 24-point preview
+  above it, using the normal light/dark theme text color.
   Words update immediately with Apple's partial results, without queued playback;
   provisional speech callbacks run separately from UI rendering. Apple still
   determines how soon words arrive; recognition can revise or skip earlier words. The full
@@ -56,6 +56,11 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
   Explicitly disabled controls and failed accessibility requests are rejected;
   native text views that omit the optional enabled flag can qualify when selected
   text replacement is supported.
+  Verified completely empty fields use their writable value when available;
+  existing text always uses selection replacement. Hello writes once and briefly
+  waits for the app's accessibility value to update. If a write was accepted but
+  cannot be verified, it says **Check text field** and retains the transcript in
+  Hello for manual Copy, without an automatic duplicate paste or clipboard change.
 - No Return, Send or keyboard paste is generated. If insertion is unavailable,
   Hello replaces the clipboard with the original transcript and shows a brief
   nonactivating **Copied to clipboard.** indicator. Cancel/Clear do not change it.
@@ -109,6 +114,9 @@ model can identify text boxes. Hello does not continuously record the screen or
 save screenshots. Then turn on **Send window to [provider]
 and fill empty fields**. Switching providers turns this opt-in off again. This switch defaults off each launch.
 Normal dictation and local cleanup do not require an API key or screen access.
+With Form filling off, ordinary dictation does not query screen permission or
+read an API key. Changing the form provider or removing a key while idle preserves
+the existing normal transcript.
 
 Open a form, leave its fields empty, and hold Control + Option. For example:
 “First name Maya, last name Chen, city Boston.” Release to map the answers. A single

@@ -3,6 +3,14 @@ import Foundation
 @main
 struct HelloFormTests {
     static func main() throws {
+        precondition(HelloFormPrerequisites.missing(enabled: false,
+            screenAllowed: { preconditionFailure("Basic dictation queried screen permission") },
+            keyAvailable: { preconditionFailure("Basic dictation accessed an API key") }) == nil)
+        precondition(HelloFormPrerequisites.missing(enabled: true, screenAllowed: { false },
+            keyAvailable: { preconditionFailure("Denied screen access must stop before key lookup") }) == .screenAccess)
+        precondition(HelloFormPrerequisites.missing(enabled: true, screenAllowed: { true }, keyAvailable: { false }) == .apiKey)
+        precondition(HelloFormPrerequisites.missing(enabled: true, screenAllowed: { true }, keyAvailable: { true }) == nil)
+        print("Form isolation: normal dictation never evaluates screen/key prerequisites; enabled mode gates both")
         let fields = [HelloFormField(id: "name", label: "Name", bounds: [0,0,100,20]),
                       HelloFormField(id: "city", label: "City", bounds: [0,30,100,20])]
         let text = "Name Jean-Luc O’Neill, city Montréal. Budget $1,000.50, not $100."

@@ -1,5 +1,16 @@
 import Foundation
 
+enum HelloFormPrerequisites {
+    enum Missing { case screenAccess, apiKey }
+
+    static func missing(enabled: Bool, screenAllowed: () -> Bool, keyAvailable: () -> Bool) -> Missing? {
+        // Ordinary dictation must not even query screenshot or API credentials.
+        guard enabled else { return nil }
+        guard screenAllowed() else { return .screenAccess }
+        return keyAvailable() ? nil : .apiKey
+    }
+}
+
 struct HelloFormField: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let label: String

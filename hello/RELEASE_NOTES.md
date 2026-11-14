@@ -6,14 +6,16 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
 - Hold Control + Option to dictate using Apple Speech; release to finish.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.
-- A small single-word preview above the waveform updates immediately with provisional
-  recognition; a fixed red focus letter and black remaining letters aid tracking.
+- A small preview above the waveform shows up to three provisional words in the
+  normal theme text color, updating immediately without queued playback.
 - Optional local spelling memory suggests short edits to recently inserted text.
   Only user-approved pairs are remembered, with removal/clear controls and raw
   recognition available through Copy original. No cloud model training is involved.
 - Normal dictation inserts only into the verified original supported text field and selection;
   changed/unsupported fields automatically copy the original transcript and show
   “Copied to clipboard.” without stealing focus. Secure fields excluded. No Return/Send.
+  Empty writable fields can use a direct value write. Accepted writes are briefly
+  verified without retrying; uncertain results show Check text field for review.
 - Optional local punctuation suggestions are review-only. Word/name/case, number,
   sign and symbol changes are rejected; the original remains available.
 - Session generations prevent quick-release and stale-callback races. Capture is

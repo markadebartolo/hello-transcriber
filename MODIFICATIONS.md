@@ -178,3 +178,24 @@ than promising a fixed latency or earlier words from the recognition engine.
 The speed improvement still needs physical comparison on the signed app.
 API references: [recognizer callback queue](https://developer.apple.com/documentation/speech/sfspeechrecognizer/queue)
 and [provisional transcription delegate](https://developer.apple.com/documentation/speech/sfspeechrecognitiontaskdelegate/speechrecognitiontask(_:didhypothesizetranscription:)).
+
+## November 14, 2026 — empty composers, delayed verification and plain captions
+
+A reported ChatGPT insertion failure showed an accepted AX write followed by a
+readback mismatch in Hello. The destination itself was not directly inspected,
+so app-specific success is still pending validation. A verified completely empty
+field now uses AXValue when writable; any existing text, including whitespace,
+still requires selected-text replacement. There is only one write. Readback is
+polled briefly to allow asynchronously updated accessibility values, with session,
+focus, secure-field and cancellation checks. Unverified accepted writes show
+Check text field and retain manual Copy without replacing the clipboard or
+automatically retrying. No key events, Return or Send are generated. Tests cover
+empty versus existing fields, delayed/immediate readback, timeout, cancellation
+and context changes. The controller remains busy until verification completes.
+
+Restored ordinary theme-colored captions with at most three words, in a
+192 × 24-point preview. Removed the red-letter and fixed-column presentation.
+Basic dictation's startup gate now explicitly skips all screen/key checks when
+Form filling is off, verified with failing probe closures in the regressions.
+Changing the form provider or removing a key while idle no longer clears a normal
+transcript. Form filling remains separately opt-in and off at launch.

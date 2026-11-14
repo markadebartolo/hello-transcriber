@@ -25,11 +25,16 @@ LLM API is called for punctuation cleanup. The proposal is review-only, never au
 
 Accessibility reads the original app, focused element, text value and selection
 in memory to verify that insertion is still safe. Secure Input and secure text
-fields are excluded. Normal dictation only writes AX selected text after revalidation; it
+fields are excluded. Normal dictation writes AX selected text after revalidation,
+or sets AXValue for a verified completely empty field with a writable value. It
 never generates Return/Send. An external application's Accessibility API cannot
 provide an atomic compare-and-set transaction, so insertion is best effort and
 unsupported/ambiguous fields fall back to automatic clipboard copy. Avoid editing or switching focus
 while finishing a dictation.
+After an accepted write, Hello briefly polls the original focused field's value
+without writing again. An unverified result shows **Check text field** and keeps
+the transcript available for manual Copy; it does not automatically replace the
+clipboard. Cancel or a context change stops verification.
 
 Input Monitoring/listen-only event taps detect shortcut transitions, Escape and
 interactions that invalidate a destination; Hello does not store keystrokes. It

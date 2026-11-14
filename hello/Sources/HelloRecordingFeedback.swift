@@ -1,31 +1,9 @@
-/// Display the newest recognized word immediately, without a delayed playback
-/// queue. Grapheme indexing keeps accents and emoji intact when coloring a letter.
-struct HelloLiveWord {
-    let word: String
-    let before: String
-    let focus: String
-    let after: String
+/// Keep the live overlay short without queuing or altering the full transcript.
+struct HelloLiveCaption {
+    let text: String
 
     init(_ transcript: String) {
-        word = transcript.split(whereSeparator: \.isWhitespace).last.map(String.init) ?? ""
-        let characters = Array(word)
-        let letters = characters.indices.filter { characters[$0].isLetter || characters[$0].isNumber }
-        let offset: Int
-        switch letters.count {
-        case 0...1: offset = 0
-        case 2...5: offset = 1
-        case 6...9: offset = 2
-        case 10...13: offset = 3
-        default: offset = 4
-        }
-        if letters.isEmpty {
-            before = ""; focus = ""; after = word
-        } else {
-            let index = letters[offset]
-            before = String(characters[..<index])
-            focus = String(characters[index])
-            after = String(characters[(index + 1)...])
-        }
+        text = transcript.split(whereSeparator: \.isWhitespace).suffix(3).joined(separator: " ")
     }
 }
 
