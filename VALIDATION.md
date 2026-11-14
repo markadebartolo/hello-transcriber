@@ -9,11 +9,12 @@ November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon h
   compile succeeded with app Swift warnings treated as errors.
 - 24 cleanup-policy tests passed, including name/case changes, contractions,
   Unicode, numeric punctuation, signed amounts, currencies, symbols and omissions.
-- 9 lifecycle scenarios passed against the real dictation manager with injected
+- 10 lifecycle scenarios passed against the real dictation manager with injected
   provider/audio: startup release/new session, stale partial/final/error callbacks,
   duplicate final, cancelled fallback, cancel then late final, silence, timeout
   partial, engine failure, pre-cancelled entry and stale permission completion
-  (related assertions are grouped into nine scenarios).
+  plus the actual permission bridge with background granted/denied callbacks and
+  synchronous completion (related assertions are grouped into ten scenarios).
 - Form-policy/planner/write-sequencing regressions passed with fixtures: exact
   Unicode names and amounts; no partial tokens, invented or duplicate IDs;
   ambiguity/unmapped-content blocks automatic fill; stale/failed writes stop;
@@ -28,3 +29,7 @@ November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon h
 Signed microphone/TCC/AX smoke, Apple notarization, Gatekeeper and downloaded-artifact
 validation remain pending until recorded alongside a signed candidate. No unsigned
 application is a release artifact. Missing evidence must never be converted to a pass.
+
+Signed build 7 revealed an actual TCC callback isolation crash on this Mac. The
+callback bridge was corrected and a regression added; signed permission recovery
+must be re-observed on the replacement candidate before the release gate can pass.

@@ -790,10 +790,8 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             currentPermissionProblem = nil
             return true
         case .notDetermined:
-            let isGranted = await withCheckedContinuation { continuation in
-                AVCaptureDevice.requestAccess(for: .audio) { isGranted in
-                    continuation.resume(returning: isGranted)
-                }
+            let isGranted = await BuddyPermissionBridge.request { completion in
+                AVCaptureDevice.requestAccess(for: .audio, completionHandler: completion)
             }
             currentPermissionProblem = isGranted ? nil : .microphoneAccessDenied
             return isGranted
@@ -812,9 +810,9 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             currentPermissionProblem = nil
             return true
         case .notDetermined:
-            let isGranted = await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { authorizationStatus in
-                    continuation.resume(returning: authorizationStatus == .authorized)
+            let isGranted = await BuddyPermissionBridge.request { completion in
+                SFSpeechRecognizer.requestAuthorization { @Sendable status in
+                    completion(status == .authorized)
                 }
             }
             currentPermissionProblem = isGranted ? nil : .speechRecognitionDenied
@@ -898,6 +896,19 @@ final class BuddyMicrophoneCapture: BuddyAudioCapture {
         if hasTap {
             engine.inputNode.removeTap(onBus: 0)
             hasTap = false
+        }
+    }
+}
+
+/// TCC completes on a background queue. Keep callback registration nonisolated
+/// and explicitly Sendable, then resume the awaiting actor via continuation.
+/// Inferring MainActor on a legacy SDK completion can trap at runtime in Swift 6.
+enum BuddyPermissionBridge {
+    static func request<Value: Sendable>(
+        _ register: @Sendable (@escaping @Sendable (Value) -> Void) -> Void
+    ) async -> Value {
+        await withCheckedContinuation { continuation in
+            register { value in continuation.resume(returning: value) }
         }
     }
 }

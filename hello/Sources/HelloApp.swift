@@ -87,7 +87,9 @@ private struct HelloPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if controller.isBusy {
                     ProgressView().controlSize(.small)
-                    Button("Cancel", action: controller.cancel)
+                    if !controller.isRequestingPermissions {
+                        Button("Cancel", action: controller.cancel)
+                    }
                 }
             }
             .padding(14)

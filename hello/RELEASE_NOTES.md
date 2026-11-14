@@ -28,7 +28,7 @@ Intelligence model. Apple Speech requests on-device processing where supported;
 otherwise Apple may process audio remotely. See PRIVACY.md.
 
 Validation recorded so far: local Xcode 27.2 universal compile on macOS 27.3;
-24 cleanup-policy cases and 9 injected lifecycle regression scenarios. Physical
+24 cleanup-policy cases and 10 injected lifecycle regression scenarios. Physical
 minimum-OS and Intel microphone behavior is not implied by compilation. Signed
 smoke, notarization and exact-download results must accompany any published binary;
 this candidate's scripts refuse publication until those gates pass.

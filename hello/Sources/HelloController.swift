@@ -131,11 +131,15 @@ final class HelloController: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         Task {
             if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
-                _ = await AVCaptureDevice.requestAccess(for: .audio)
+                _ = await BuddyPermissionBridge.request { completion in
+                    AVCaptureDevice.requestAccess(for: .audio, completionHandler: completion)
+                }
             }
             if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
-                _ = await withCheckedContinuation { continuation in
-                    SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+                _ = await BuddyPermissionBridge.request { completion in
+                    SFSpeechRecognizer.requestAuthorization { @Sendable status in
+                        completion(status == .authorized)
+                    }
                 }
             }
             isRequestingPermissions = false

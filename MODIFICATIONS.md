@@ -73,3 +73,15 @@ The Xcode 16/macOS 15 CI job exposed missing ScreenCaptureKit Sendable annotatio
 in that SDK. The import is explicitly preconcurrency; shareable-content snapshots
 remain read-only in the main-actor form context. Newer SDK compilation and older
 SDK CI are both required.
+
+## November 14, 2026 — observed permission callback crash
+
+Signed build 7 exited with EXC_BREAKPOINT / `_dispatch_assert_queue_fail` during
+a TCC permission response on a background queue. Legacy Speech completion blocks
+were inheriting MainActor isolation. Added a nonisolated, Sendable continuation
+bridge in BuddyDictationManager and used it for both manager and Hello setup
+permission requests. Main-actor state changes occur only after awaiting the result.
+Added a regression that invokes the real bridge off-main with granted/denied results
+and synchronously, verifying resumption on MainActor. The reviewed current manager
+checksum changed; original provenance hashes remain intact. Permission dialogs
+no longer display a misleading in-app Cancel button that cannot dismiss macOS TCC.

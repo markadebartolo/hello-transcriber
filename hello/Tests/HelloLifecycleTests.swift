@@ -54,6 +54,17 @@ private final class TestProvider: BuddyTranscriptionProvider {
 @main
 struct HelloLifecycleTests {
     @MainActor static func main() async {
+        // Exercise the actual permission bridge from MainActor with TCC-style
+        // background completion. An actor-inheriting callback traps in Swift 6.
+        for expected in [true, false] {
+            let result: Bool = await BuddyPermissionBridge.request { completion in
+                DispatchQueue.global().async { completion(expected) }
+            }
+            precondition(result == expected)
+            MainActor.assertIsolated()
+        }
+        let synchronous: Bool = await BuddyPermissionBridge.request { completion in completion(true) }
+        precondition(synchronous)
         let provider = TestProvider()
         let capture = TestCapture()
         let manager = BuddyDictationManager(transcriptionProvider: provider, audioCapture: capture, permissionCheck: { true })
@@ -153,6 +164,6 @@ struct HelloLifecycleTests {
         await permissionStart.value
         precondition(capture.running && permissionManager.isActivelyRecordingAudio)
         permissionManager.cancelCurrentDictation(preserveDraftText: false)
-        print("Hello lifecycle: 9 regression scenarios passed (injected provider/audio; no microphone access)")
+        print("Hello lifecycle: 10 regression scenarios passed (injected provider/audio; no microphone access)")
     }
 }
