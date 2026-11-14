@@ -112,3 +112,22 @@ reviewed current module checksum; original provenance hashes are unchanged.
 The audio-engine configuration notification receiver is also explicitly Sendable
 before dispatching cancellation onto MainActor, since it may arrive off-main.
 The earlier indicator-only change did not fix this runtime microphone crash.
+
+## November 14, 2026 — live captions and approved local spellings
+
+The compact recording pill now shows provisional Apple Speech words in a small
+single-line caption above its waveform. Caption updates replace prior partials
+and show raw recognition; approved spelling changes appear in the final transcript.
+The panel remains nonactivating and retains the small pill when no caption exists.
+
+Optional spelling memory watches only a verified normal insertion in the same
+focused non-secure field for 10 seconds, per the user's requested limit. Surrounding
+text must remain unchanged. Stable short word/phrase edits become local suggestions;
+only explicit Remember spelling saves a pair. Whole-word/phrase replacements are
+case-insensitive, one-pass, and retain the user's exact preferred spelling. Raw
+recognition stays available through Copy original. Forms and manual clipboard
+pastes are excluded. Disabling, cancellation, focus/app changes, new dictation and
+timeout end observation. Saved pairs have owner-only file permissions, with remove
+and clear controls. No external model training or network request is added.
+Regression tests cover partial revisions, edit boundaries, numbers, Unicode,
+noncascading replacements, persistence, removal, corrupt data and write failures.

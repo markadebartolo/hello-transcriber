@@ -163,6 +163,32 @@ private struct HelloPanel: View {
             }
 
             Divider()
+            DisclosureGroup("Personal spellings") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Use spelling memory", isOn: $controller.spellingMemoryEnabled).disabled(controller.isBusy)
+                    Text("After Hello inserts text, correct a spelling in the same field within 10 seconds. Pause two seconds, then open Hello to approve a suggested spelling. Approved replacements match regardless of case and use your saved spelling in future normal dictation. They stay on this Mac. Form filling keeps the original recognition.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let suggestion = controller.suggestedSpelling {
+                        Text("Remember ‘\(suggestion.heard)’ as ‘\(suggestion.spelling)’?")
+                        HStack {
+                            Button("Remember spelling", action: controller.rememberSuggestedSpelling)
+                            Button("Ignore", action: controller.ignoreSuggestedSpelling)
+                        }.disabled(controller.isBusy)
+                    }
+                    ForEach(controller.spellingMemory.entries) { entry in
+                        HStack {
+                            Text("\(entry.heard) → \(entry.spelling)").textSelection(.enabled)
+                            Spacer()
+                            Button("Remove") { controller.spellingMemory.remove(entry) }.disabled(controller.isBusy)
+                        }
+                    }
+                    if !controller.spellingMemory.message.isEmpty {
+                        Text(controller.spellingMemory.message).font(.caption)
+                    }
+                    Button("Clear saved spellings", action: controller.clearSavedSpellings).disabled(controller.isBusy)
+                }.padding(.top, 8)
+            }
+
             DisclosureGroup("Form filling", isExpanded: $showsFormSettings) {
                 VStack(alignment: .leading, spacing: 10) {
                     Picker("AI provider", selection: $controller.formProvider) {

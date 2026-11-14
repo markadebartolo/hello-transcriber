@@ -87,8 +87,9 @@ struct HelloLifecycleTests {
         let capture = TestCapture()
         let manager = BuddyDictationManager(transcriptionProvider: provider, audioCapture: capture, permissionCheck: { true })
         var delivered: [String] = []
+        var liveUpdates: [String] = []
         func start() async {
-            await manager.startPushToTalkFromKeyboardShortcut(currentDraftText: "", updateDraftText: { _ in }, submitDraftText: { delivered.append($0) })
+            await manager.startPushToTalkFromKeyboardShortcut(currentDraftText: "", updateDraftText: { liveUpdates.append($0) }, submitDraftText: { delivered.append($0) })
         }
         func drain() async { try? await Task.sleep(for: .milliseconds(80)) }
         func waitUntil(_ description: String, _ condition: () -> Bool) async {
@@ -118,6 +119,15 @@ struct HelloLifecycleTests {
         provider.calls[0].error(TestError.failed)
         await drain()
         precondition(delivered.isEmpty && capture.running, "Stale callback changed new session")
+        precondition(liveUpdates.isEmpty, "Stale partial appeared in live captions")
+
+        // Recognition revisions replace the live words, rather than appending
+        // duplicate partial sentences. They must arrive before key release.
+        provider.calls[1].partial("Hello May")
+        await waitUntil("first live partial", { liveUpdates.count == 1 })
+        provider.calls[1].partial("Hello Maya")
+        await waitUntil("revised live partial", { liveUpdates.count == 2 })
+        precondition(liveUpdates == ["Hello May", "Hello Maya"] && capture.running)
 
         // Current final exactly once, with duplicate/out-of-order callbacks ignored.
         manager.stopPushToTalkFromKeyboardShortcut()
@@ -182,6 +192,6 @@ struct HelloLifecycleTests {
         await permissionStart.value
         precondition(capture.running && permissionManager.isActivelyRecordingAudio)
         permissionManager.cancelCurrentDictation(preserveDraftText: false)
-        print("Hello lifecycle: 11 regression scenarios passed (injected provider/audio and real tap handler; no microphone access)")
+        print("Hello lifecycle: 12 regression scenarios passed (injected provider/audio and real tap handler; no microphone access)")
     }
 }

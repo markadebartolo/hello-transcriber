@@ -22,13 +22,22 @@ final class HelloStatusPanel {
             .sink { [weak self, weak controller] _ in
                 guard let self, let controller else { return }
                 if controller.recordingFeedback.isVisible {
+                    let hasCaption = !controller.liveCaption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let size = NSSize(width: hasCaption ? 260 : 168, height: hasCaption ? 70 : 34)
                     if !panel.isVisible {
                         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
                         if let screen {
-                            panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 84, y: screen.visibleFrame.minY + 34))
+                            panel.setFrame(NSRect(x: screen.visibleFrame.midX - size.width / 2,
+                                                  y: screen.visibleFrame.minY + 34,
+                                                  width: size.width, height: size.height), display: true)
                         }
                         // Display without activation so the destination field keeps focus.
                         panel.orderFrontRegardless()
+                    } else if panel.frame.size != size {
+                        // Grow upward without moving the waveform or taking focus.
+                        panel.setFrame(NSRect(x: panel.frame.midX - size.width / 2,
+                                              y: panel.frame.minY,
+                                              width: size.width, height: size.height), display: true)
                     }
                 } else {
                     panel.orderOut(nil)
@@ -42,8 +51,27 @@ private struct HelloRecordingStatus: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let caption = controller.liveCaption.trimmingCharacters(in: .whitespacesAndNewlines)
+        VStack(spacing: 6) {
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .padding(.horizontal, 10)
+                    .frame(width: 260, height: 30)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .accessibilityLabel("Live transcript, may change: \(caption)")
+                    .help("Live recognition may revise these words. Open Hello to see the full transcript.")
+            }
+            recordingPill
+        }
+        .frame(width: caption.isEmpty ? 168 : 260, height: caption.isEmpty ? 34 : 70, alignment: .bottom)
+    }
+
+    private var recordingPill: some View {
         let feedback = controller.recordingFeedback
-        HStack(spacing: 7) {
+        return HStack(spacing: 7) {
             if feedback.showsLiveWaveform {
                 HStack(alignment: .center, spacing: 2) {
                     ForEach(Array(controller.dictation.recordedAudioPowerHistory.suffix(12).enumerated()), id: \.offset) { _, level in

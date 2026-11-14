@@ -6,6 +6,10 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
 - Hold Control + Option to dictate using Apple Speech; release to finish.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.
+- Compact live captions above the waveform show provisional recognition revisions.
+- Optional local spelling memory suggests short edits to recently inserted text.
+  Only user-approved pairs are remembered, with removal/clear controls and raw
+  recognition available through Copy original. No cloud model training is involved.
 - Normal dictation inserts only into the verified original supported text field and selection;
   changed/unsupported fields automatically copy the original transcript and show
   “Copied to clipboard.” without stealing focus. Secure fields excluded. No Return/Send.
@@ -29,7 +33,8 @@ Intelligence model. Apple Speech requests on-device processing where supported;
 otherwise Apple may process audio remotely. See PRIVACY.md.
 
 Validation recorded so far: local Xcode 27.2 universal compile on macOS 27.3;
-24 cleanup-policy cases and 11 injected lifecycle/audio-callback regression scenarios. Physical
+24 cleanup-policy cases and 12 injected lifecycle/audio-callback/live-partial regression scenarios,
+plus local spelling inference, replacement and storage cases. Physical
 minimum-OS and Intel microphone behavior is not implied by compilation. Signed
 smoke, notarization and exact-download results must accompany any published binary;
 this candidate's scripts refuse publication until those gates pass.

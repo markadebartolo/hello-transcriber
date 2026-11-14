@@ -36,12 +36,37 @@ interactions that invalidate a destination; Hello does not store keystrokes. It
 requests Screen Recording only when you enable the optional form feature. It never
 requests Camera, contacts, location or Automation access.
 
-Hello writes no audio or transcript history to disk and logs no transcript content.
+Hello writes no audio or full transcript history to disk and logs no transcript content.
 Latest text and destination snapshots are held in process memory during use and
 removed on Clear/cancel/quit or when replaced by a new session. Copy and the automatic no-destination fallback place text on
 the macOS clipboard; other apps and clipboard managers may retain
 it. Your preferences and macOS privacy grants are managed locally. OS crash reports,
 swap and Apple's own diagnostics are outside Hello's storage policy.
+
+## Optional personal spellings
+
+Spelling memory defaults off. When enabled, after a verified normal insertion
+Hello reads that same focused, non-secure field for at most 10 seconds, checking
+every half-second. It compares only the inserted segment while requiring unchanged
+surrounding text and the same application/element. Losing focus, switching apps,
+Secure Input, Clear/cancel, a new dictation or disabling the feature stops the watch.
+No keystroke content is recorded, and no correction text goes to a cloud API.
+Form filling and manual clipboard pastes do not create a watch.
+
+Stable short edits become in-memory suggestions. Only **Remember spelling** saves
+a pair of recognized/replacement words (up to three words and 80 UTF-16 units on
+each side, at most 100 pairs). Approved spellings can contain personal names;
+they are stored in plain text at `~/Library/Application Support/Hello/spellings.json`
+with owner-only file permissions. Hello does not synchronize this file, though
+your own backups may include it. Full transcripts, original field values and
+rejected suggestions are not written to this dictionary. **Remove** deletes a
+pair; **Clear saved spellings** deletes the file. Deleting Hello.app alone does
+not delete it. Disabling memory preserves existing entries but stops their use.
+
+Saved spellings are applied locally to normal dictation before insertion or
+automatic clipboard fallback; **Copy original** retains raw recognition. They do
+not train Apple or an external model. Live captions above the waveform show
+provisional raw recognition, which can change as speech processing catches up.
 
 ## Optional BYOK form filling
 

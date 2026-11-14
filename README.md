@@ -34,7 +34,11 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 ## Behavior
 
 - A persistent indicator shows when Control + Option are held. While listening,
-  its waveform follows microphone levels, including quiet pauses. Release shows
+  its small waveform follows microphone levels, including quiet pauses. Live
+  recognized words appear in a single line above it, updating as Apple Speech
+  revises its interpretation. Long speech shows the latest words; the full
+  transcript is in Hello. These partial results are provisional, not a guarantee
+  of accuracy or an approval step before insertion. Release shows
   **Transcribing…** until finalization ends. If capture stops early, the indicator
   says **Microphone stopped** and stays visible until you release the keys.
 - In normal dictation mode, only enabled, non-secure text fields exposing a verifiable selection and value
@@ -59,6 +63,29 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 - Apple Speech requests on-device recognition when the recognizer supports it;
   otherwise Apple may process audio remotely. This is not an offline-only app.
   See [privacy](PRIVACY.md) for scope and limitations.
+
+## Personal spellings (optional)
+
+Open **Personal spellings → Use spelling memory**. After Hello automatically
+inserts text, correct a spelling in that same field within 10 seconds. Pause for
+about two seconds, then open Hello and choose **Remember spelling** or **Ignore**.
+Only short word/phrase edits with unchanged surrounding text become suggestions;
+changing numbers, deleting text, switching focus/apps, or editing surrounding
+content can prevent a suggestion. Manually pasting from the clipboard and form
+filling are not watched. Suggestions remain in memory until dismissed/replaced,
+Clear/cancel, or quit. They are never learned without approval.
+
+Approved whole-word/phrase replacements match without regard to case and use the
+exact spelling you saved. They apply to future normal dictation and its automatic
+clipboard fallback, before optional punctuation cleanup. **Copy original** always
+provides Apple's raw recognition. Live captions show that raw recognition, so
+saved-spelling changes appear in the completed transcript. This is a local
+replacement dictionary, not training an AI model. No API key is required.
+
+You can remove individual entries, **Clear saved spellings**, or disable spelling
+memory to stop both observation and replacement. At most 100 approved pairs are
+saved locally; no correction history or full field contents are persisted. See
+[privacy](PRIVACY.md) for the storage location and observation boundaries.
 
 ## Form filling (optional)
 

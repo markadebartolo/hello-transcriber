@@ -18,6 +18,9 @@ Required checks (the IDs are release-gate keys):
   its waveform follows real audio. If capture stops early, it shows Microphone
   stopped rather than disappearing or claiming to listen. Release shows
   Transcribing until finalization ends. Cancel while held leaves a stopped state.
+  Partial recognized words appear above the small waveform and update in place
+  as recognition revises them. Long speech shows recent words; the full text stays
+  in Hello. The caption does not take focus or insert partial text.
 - [ ] **selection:** replace only a selected word in TextEdit; test caret insertion
   and Unicode/surrogate text. Try Safari textarea and Notes. Unsupported fields
   offer Copy. Record which app/version genuinely supports AX insertion.
@@ -31,6 +34,12 @@ Required checks (the IDs are release-gate keys):
   Clear removes text. No destination or unsafe/unsupported field automatically
   copies the original transcript and shows “Copied to clipboard.” without taking
   focus. Cancel/Clear and empty speech do not alter the clipboard; no Return/Send.
+  With spelling memory enabled, approved replacements apply to the fallback;
+  Copy original still gives raw recognition. Correct a just-inserted spelling,
+  pause two seconds and open Hello: approve/ignore the candidate, repeat dictation,
+  remove a saved pair, clear all, and disable memory. Verify no learning from
+  numeric changes, surrounding edits, secure/other fields, manual pastes or forms.
+  Verify timeout, app/focus change, new recording and Cancel stop observation.
 - [ ] **cleanup:** verify availability indication. When available, run real local
   cleanup with names/numbers/currencies/signs. Review-only, no automatic insertion;
   cancellation/timeout leaves safe state. If unavailable, confirm disabled UI and
