@@ -16,11 +16,14 @@ If there is no published release, there is no validated downloadable build yet.
 
 1. Download the ZIP and `SHA256SUMS`; run `shasum -a 256 -c SHA256SUMS` beside them.
 2. Extract it in Finder. Drag `Hello.app` into Applications and open it in Finder.
-3. Open the waveform menu bar item. Choose **Enable audio** and allow Microphone
+3. Hello opens a visible setup window. Choose **Enable audio** and allow Microphone
    and Speech Recognition. Enable Accessibility for insertion; Input Monitoring
    may also be needed for the global shortcut.
 4. Click a supported text field, hold Control + Option while talking, then release.
    The floating recording indicator does not activate another application.
+
+Closing the window leaves Hello in the menu bar. Reopen Hello from Finder to bring
+the window back if the icon is hidden or hard to find.
 
 If a permission is denied, use Hello's settings buttons, grant access in System
 Settings → Privacy & Security, then retry the shortcut. macOS may request a relaunch

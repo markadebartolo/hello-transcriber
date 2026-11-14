@@ -7,7 +7,8 @@ observations in signed-smoke.json; see RELEASING.md. No checkbox is pre-passed.
 Required checks (the IDs are release-gate keys):
 
 - [ ] **identity:** Hello waveform icon, bundle `com.markdebartolo.hello`, expected
-  Developer ID/team and hardened runtime; no effect on existing Dorsal grants.
+  Developer ID/team and hardened runtime; visible setup window at launch, close
+  leaves app running, Finder reopen restores window; no effect on existing Dorsal grants.
 - [ ] **permissions:** fresh Hello identity prompts once for Microphone and Speech;
   deny/recover each through Settings. Accessibility/Input Monitoring denial is
   visible; Retry works after grants/relaunch. No Screen Recording/Camera prompt.

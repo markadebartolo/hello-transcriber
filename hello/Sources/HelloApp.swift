@@ -3,17 +3,60 @@ import SwiftUI
 
 @main
 struct HelloApp: App {
-    @StateObject private var controller = HelloController()
+    @NSApplicationDelegateAdaptor(HelloAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         MenuBarExtra {
-            HelloPanel(controller: controller)
+            HelloPanel(controller: appDelegate.controller)
         } label: {
-            Image("HelloWaveform")
-                .accessibilityLabel(controller.dictation.isActivelyRecordingAudio ? "Hello · Listening" : "Hello")
-                .opacity(controller.isBusy ? 0.65 : 1)
+            HelloMenuBarLabel(controller: appDelegate.controller)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+private struct HelloMenuBarLabel: View {
+    @ObservedObject var controller: HelloController
+    var body: some View {
+        Image("HelloWaveform")
+            .accessibilityLabel(controller.dictation.isActivelyRecordingAudio ? "Hello · Listening" : "Hello")
+            .opacity(controller.isBusy ? 0.65 : 1)
+    }
+}
+
+@MainActor
+final class HelloAppDelegate: NSObject, NSApplicationDelegate {
+    let controller = HelloController()
+    private var setupWindow: NSWindow?
+
+    func applicationDidFinishLaunching(_ notification: Notification) { showSetupWindow() }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showSetupWindow()
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        controller.cancel()
+        controller.shortcutMonitor.stop()
+    }
+
+    private func showSetupWindow() {
+        if setupWindow == nil {
+            let availableHeight = NSScreen.main?.visibleFrame.height ?? 900
+            let height = min(720, max(400, availableHeight - 120))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: height),
+                                  styleMask: [.titled, .closable, .miniaturizable],
+                                  backing: .buffered, defer: false)
+            window.title = "Hello Transcriber"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView:
+                ScrollView { HelloPanel(controller: controller) }.frame(width: 420))
+            window.center()
+            setupWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        setupWindow?.makeKeyAndOrderFront(nil)
     }
 }
 
