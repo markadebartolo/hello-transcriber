@@ -23,7 +23,8 @@ final class HelloStatusPanel {
                 guard let self, let controller else { return }
                 if controller.recordingFeedback.isVisible {
                     let hasCaption = !controller.liveCaption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let size = NSSize(width: hasCaption ? 260 : 168, height: hasCaption ? 70 : 34)
+                    let size = NSSize(width: hasCaption ? 260 : controller.recordingFeedback.showsLiveWaveform ? 96 : 168,
+                                      height: hasCaption ? 70 : 34)
                     if !panel.isVisible {
                         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
                         if let screen {
@@ -66,7 +67,8 @@ private struct HelloRecordingStatus: View {
             }
             recordingPill
         }
-        .frame(width: caption.isEmpty ? 168 : 260, height: caption.isEmpty ? 34 : 70, alignment: .bottom)
+        .frame(width: caption.isEmpty ? (controller.recordingFeedback.showsLiveWaveform ? 96 : 168) : 260,
+               height: caption.isEmpty ? 34 : 70, alignment: .bottom)
     }
 
     private var recordingPill: some View {
@@ -88,12 +90,14 @@ private struct HelloRecordingStatus: View {
             } else if feedback.phase == .stopped {
                 Image(systemName: "mic.slash.fill").foregroundStyle(.secondary).accessibilityHidden(true)
             }
-            Text(compactTitle)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .help(controller.statusText)
-                .accessibilityLabel("\(feedback.title). \(controller.statusText)")
+            if !feedback.showsLiveWaveform {
+                Text(compactTitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(controller.statusText)
+                    .accessibilityLabel("\(feedback.title). \(controller.statusText)")
+            }
             Button(action: { if controller.isBusy { controller.cancel() } else { controller.dismissResult() } }) {
                 Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
                     .frame(width: 20, height: 24).contentShape(Rectangle())
@@ -103,7 +107,7 @@ private struct HelloRecordingStatus: View {
             .disabled(controller.shortcutMonitor.isShortcutCurrentlyPressed && !controller.isBusy)
         }
         .padding(.horizontal, 10)
-        .frame(width: 168, height: 34)
+        .frame(width: feedback.showsLiveWaveform ? 96 : 168, height: 34)
         .background(.regularMaterial, in: Capsule())
     }
 

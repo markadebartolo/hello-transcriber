@@ -11,19 +11,41 @@ struct HelloTextDestination {
     private let selectedRange: CFRange
     private let originalValue: String
 
-    static func capture() -> HelloTextDestination? {
-        guard AXIsProcessTrusted(), !IsSecureEventInputEnabled(),
-              let application = NSWorkspace.shared.frontmostApplication,
+    enum InsertionFailure: Error, LocalizedError {
+        case accessibility, secure, noField, unsupported, selectionUnavailable, differentApp, changed, notWritable, writeFailed, unverified
+        var errorDescription: String? {
+            switch self {
+            case .accessibility: return "Allow Hello in Accessibility to insert text."
+            case .secure: return "Secure fields and Secure Input cannot receive dictation."
+            case .noField: return "No text field had keyboard focus. Click inside the field before holding Control + Option."
+            case .unsupported: return "The focused control is not a supported editable text field."
+            case .selectionUnavailable: return "This field does not expose a verifiable text selection."
+            case .differentApp: return "The original app or focused field could not be verified."
+            case .changed: return "The field, selection, or app changed before insertion."
+            case .notWritable: return "This field does not allow its selected text to be replaced."
+            case .writeFailed: return "The app did not accept text insertion."
+            case .unverified: return "The app accepted the insertion request, but Hello could not verify the resulting text. Check the field before pasting."
+            }
+        }
+    }
+
+    static func capture() throws -> HelloTextDestination {
+        guard AXIsProcessTrusted() else { throw InsertionFailure.accessibility }
+        guard !IsSecureEventInputEnabled() else { throw InsertionFailure.secure }
+        guard let application = NSWorkspace.shared.frontmostApplication,
               application.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-              let element = focusedElement(), isEditableNonSecureElement(element),
-              let range = selectionRange(of: element),
+              let element = focusedElement() else { throw InsertionFailure.noField }
+        AXUIElementSetMessagingTimeout(element, 0.25)
+        guard attribute(kAXSubroleAttribute, of: element) as? String != kAXSecureTextFieldSubrole else { throw InsertionFailure.secure }
+        guard isEditableNonSecureElement(element) else { throw InsertionFailure.unsupported }
+        guard let range = selectionRange(of: element),
               let value = attribute(kAXValueAttribute, of: element) as? String,
               range.location <= value.utf16.count,
-              range.length <= value.utf16.count - range.location else { return nil }
-        AXUIElementSetMessagingTimeout(element, 0.25)
+              range.length <= value.utf16.count - range.location,
+              Range(NSRange(location: range.location, length: range.length), in: value) != nil else { throw InsertionFailure.selectionUnavailable }
         var elementPID: pid_t = 0
         guard AXUIElementGetPid(element, &elementPID) == .success,
-              elementPID == application.processIdentifier else { return nil }
+              elementPID == application.processIdentifier else { throw InsertionFailure.differentApp }
         return HelloTextDestination(
             applicationIdentifier: application.processIdentifier,
             applicationName: application.localizedName ?? "your app",
@@ -33,23 +55,33 @@ struct HelloTextDestination {
         )
     }
 
-    /// AX replaces only the current selection. Apps without a writable selection keep
-    /// the transcript in Hello for explicit copy/paste; never overwrite AXValue wholesale.
-    func insert(_ text: String) -> Bool {
-        guard !text.isEmpty, AXIsProcessTrusted(), !IsSecureEventInputEnabled(),
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == applicationIdentifier,
-              let currentElement = Self.focusedElement(), CFEqual(element, currentElement),
-              Self.isEditableNonSecureElement(currentElement) else { return false }
+    /// Replace only the verified selection, never the field's entire value.
+    func insert(_ text: String) -> Result<Void, InsertionFailure> {
+        guard !text.isEmpty else { return .failure(.writeFailed) }
+        if let failure = validationFailure() { return .failure(failure) }
+        var isSettable = DarwinBoolean(false)
+        guard AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &isSettable) == .success,
+              isSettable.boolValue else { return .failure(.notWritable) }
+        // Recheck immediately before writing: querying another app can take time.
+        if let failure = validationFailure() { return .failure(failure) }
+        guard AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success else { return .failure(.writeFailed) }
+        let expected = (originalValue as NSString).replacingCharacters(
+            in: NSRange(location: selectedRange.location, length: selectedRange.length), with: text)
+        guard Self.attribute(kAXValueAttribute, of: element) as? String == expected else { return .failure(.unverified) }
+        return .success(())
+    }
+
+    private func validationFailure() -> InsertionFailure? {
+        guard AXIsProcessTrusted() else { return .accessibility }
+        guard !IsSecureEventInputEnabled() else { return .secure }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == applicationIdentifier,
+              let currentElement = Self.focusedElement(), CFEqual(element, currentElement) else { return .changed }
+        guard Self.isEditableNonSecureElement(currentElement) else { return .unsupported }
         guard let currentRange = Self.selectionRange(of: currentElement),
               currentRange.location == selectedRange.location,
               currentRange.length == selectedRange.length,
-              Self.attribute(kAXValueAttribute, of: currentElement) as? String == originalValue else { return false }
-        var isSettable = DarwinBoolean(false)
-        guard AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &isSettable) == .success,
-              isSettable.boolValue,
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == applicationIdentifier,
-              !IsSecureEventInputEnabled() else { return false }
-        return AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success
+              Self.attribute(kAXValueAttribute, of: currentElement) as? String == originalValue else { return .changed }
+        return nil
     }
 
     /// A short-lived read-only watch, created only after verified insertion.

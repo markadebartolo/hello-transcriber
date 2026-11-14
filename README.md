@@ -46,6 +46,10 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
   moving the selection, or editing the field invalidates insertion. Hello copies the original transcript automatically
   when the field cannot be verified and shows **Copied to clipboard.** Browser editors and custom controls may not
   support AX selected-text replacement.
+  Click inside the destination before holding the shortcut; simply opening a
+  document may not give its text field keyboard focus. After a fallback, Hello's
+  window explains whether focus, selection, field support or write verification
+  prevented insertion. Optional Form filling is separate and defaults off.
 - No Return, Send or keyboard paste is generated. If insertion is unavailable,
   Hello replaces the clipboard with the original transcript and shows a brief
   nonactivating **Copied to clipboard.** indicator. Cancel/Clear do not change it.

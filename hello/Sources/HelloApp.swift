@@ -85,6 +85,10 @@ private struct HelloPanel: View {
                     .font(.system(size: 13, weight: .medium))
                 Text(controller.statusText).font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if !controller.insertionMessage.isEmpty {
+                    Text(controller.insertionMessage).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if controller.isBusy {
                     ProgressView().controlSize(.small)
                     if !controller.isRequestingPermissions {

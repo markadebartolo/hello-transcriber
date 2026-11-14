@@ -22,6 +22,7 @@ final class HelloController: ObservableObject {
     @Published private(set) var transcript = ""
     @Published private(set) var originalTranscript = ""
     @Published private(set) var resultMessage = "Hold Control + Option in a text field."
+    @Published private(set) var insertionMessage = ""
     @Published private(set) var isProcessingTranscript = false
     @Published private(set) var isRequestingPermissions = false
     @Published var formProvider = HelloAIProvider(rawValue: UserDefaults.standard.string(forKey: "Hello.formProvider") ?? "") ?? .openAI {
@@ -164,6 +165,9 @@ final class HelloController: ObservableObject {
     }
 
     private func invalidateDestination() {
+        if destination != nil && !sessionUsesForms {
+            insertionMessage = "The field, selection, or app changed before insertion."
+        }
         destination = nil
         formContext = nil
         contextIdentifier = UUID()
@@ -244,7 +248,12 @@ final class HelloController: ObservableObject {
             do { formContext = try HelloFormContext.capture() }
             catch { formCaptureError = error.localizedDescription }
         }
-        destination = automaticallyInsert && !sessionUsesForms ? HelloTextDestination.capture() : nil
+        destination = nil
+        insertionMessage = ""
+        if automaticallyInsert && !sessionUsesForms {
+            do { destination = try HelloTextDestination.capture() }
+            catch { insertionMessage = error.localizedDescription }
+        }
         transcript = ""
         originalTranscript = ""
         personalizedTranscript = ""
@@ -311,12 +320,22 @@ final class HelloController: ObservableObject {
             transcript = HelloTranscriptPolicy.acceptedCleanup(candidate, original: preparedText)
             cleanupTimeoutTask?.cancel()
             isProcessingTranscript = false
-            if shouldInsert, contextIdentifier == capturedRevision, let capturedDestination, capturedDestination.insert(transcript) {
-                announceResult("Inserted into \(capturedDestination.applicationName).")
-                if spellingMemoryEnabled, let watch = capturedDestination.correctionWatch(afterInserting: transcript) {
-                    observeSpellingCorrections(watch)
+            if shouldInsert, contextIdentifier == capturedRevision, let capturedDestination {
+                switch capturedDestination.insert(transcript) {
+                case .success:
+                    insertionMessage = ""
+                    announceResult("Inserted into \(capturedDestination.applicationName).")
+                    if spellingMemoryEnabled, let watch = capturedDestination.correctionWatch(afterInserting: transcript) {
+                        observeSpellingCorrections(watch)
+                    }
+                case .failure(let error):
+                    insertionMessage = error.localizedDescription
+                    copyFallbackTranscript()
                 }
             } else {
+                if shouldClean { insertionMessage = "Punctuation cleanup is review-only. Review the suggestion in Hello." }
+                else if !automaticallyInsert { insertionMessage = "Automatic insertion is turned off." }
+                else if contextIdentifier != capturedRevision { insertionMessage = "The field, selection, or app changed before insertion." }
                 copyFallbackTranscript()
             }
         }
@@ -428,6 +447,7 @@ final class HelloController: ObservableObject {
 
     func cancel() {
         stopSpellingObservation(clearSuggestion: true)
+        insertionMessage = ""
         dismissResult()
         sessionIdentifier = UUID()
         recordingTask?.cancel()

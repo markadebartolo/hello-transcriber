@@ -131,3 +131,13 @@ timeout end observation. Saved pairs have owner-only file permissions, with remo
 and clear controls. No external model training or network request is added.
 Regression tests cover partial revisions, edit boundaries, numbers, Unicode,
 noncascading replacements, persistence, removal, corrupt data and write failures.
+
+## November 14, 2026 — waveform-only listening and insertion feedback
+
+Removed the visible Listening word and reduced the active microphone pill to
+96 × 34 points; live captions remain above it. Startup, transcribing and stopped
+states retain their distinct labels, and the cancel control remains available.
+A reported TextEdit fallback is not treated as a passed insertion test. Added
+specific user-facing fallback reasons, Unicode-valid selection bounds, an immediate
+pre-write recheck, and exact value readback before reporting insertion success.
+No whole-field replacement, synthetic paste, Return or Send was introduced.
