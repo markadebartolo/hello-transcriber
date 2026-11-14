@@ -6,6 +6,7 @@ trap 'rm -rf "$CHECK_DIR"' EXIT
 [[ "$(uname -s)" == Darwin ]] || { echo 'macOS and Xcode are required.' >&2; exit 1; }
 for script in "$ROOT_DIR"/hello/scripts/*.sh; do bash -n "$script"; done
 python3 "$ROOT_DIR/hello/scripts/verify-provenance.py"
+python3 "$ROOT_DIR/hello/Tests/ReleaseGateTests.py"
 SWIFT_FLAGS=(-swift-version 6 -warnings-as-errors -module-cache-path "$CHECK_DIR/ModuleCache" -target "$(uname -m)-apple-macos14.2")
 xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloTranscriptPolicy.swift" \
   "$ROOT_DIR/hello/Tests/HelloTranscriptPolicyTests.swift" -o "$CHECK_DIR/policy-tests"
