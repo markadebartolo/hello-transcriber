@@ -1,16 +1,26 @@
 # Hello 0.1.0
 
-**Draft release notes — intended behavior only. This code has not yet been compiled or validated on macOS, notarized, or released. Replace this notice only after the checks in SMOKE_TEST.md pass.**
+First standalone Hello Transcriber candidate, developed from the scoped Dorsal
+extraction on November 14, 2026. No earlier Hello release history is implied.
 
-Hold Control + Option, speak, and release to turn your voice into text.
+- Hold Control + Option to dictate using Apple Speech; release to finish.
+- Live transcript, recording indicator/audio feedback, Escape/Cancel, Copy and Clear.
+- Insert only into the verified original supported text field and selection;
+  changed/unsupported fields offer Copy. Secure fields excluded. No Return/Send.
+- Optional local punctuation suggestions are review-only. Word/name/case, number,
+  sign and symbol changes are rejected; the original remains available.
+- Session generations prevent quick-release and stale-callback races. Capture is
+  cancelled on failure/sleep/reconfiguration and bounded to 60 seconds.
+- Standalone universal app, scoped MIT license with Clicky/Farza attribution,
+  documented provenance, Swift 6 checks and macOS CI. No private Dorsal services,
+  screenshots, analytics, embedded credentials or transcript history.
 
-- A small macOS menu bar app using the real Dorsal dictation engine.
-- Apple Speech transcription, with on-device recognition when supported.
-- Optional on-device punctuation cleanup that preserves the original words and numbers.
-- Inserts into the original supported text field; offers Copy when the field changes or the app does not support direct insertion.
-- Password fields are excluded. No Return/Send action is generated.
-- No Dorsal screenshot, cursor, analytics, licensing, or Worker services are included.
+Requires macOS 14.2+. Optional cleanup needs macOS 26+ and an available Apple
+Intelligence model. Apple Speech requests on-device processing where supported;
+otherwise Apple may process audio remotely. See PRIVACY.md.
 
-Requires macOS 14.2 or later. Optional cleanup requires supported Apple Intelligence hardware with macOS 26 or later. Apple Speech may use Apple's servers when on-device recognition is unavailable.
-
-This is a first release. Test your target apps before relying on automatic insertion. The latest transcript stays in memory until cleared or quit; no transcript history is written to disk.
+Validation recorded so far: local Xcode 27.2 universal compile on macOS 27.3;
+24 cleanup-policy cases and 9 injected lifecycle regression scenarios. Physical
+minimum-OS and Intel microphone behavior is not implied by compilation. Signed
+smoke, notarization and exact-download results must accompany any published binary;
+this candidate's scripts refuse publication until those gates pass.

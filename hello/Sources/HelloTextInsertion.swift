@@ -8,18 +8,27 @@ struct HelloTextDestination {
     let applicationIdentifier: pid_t
     let applicationName: String
     private let element: AXUIElement
-    private let selectedRange: CFTypeRef?
+    private let selectedRange: CFRange
+    private let originalValue: String
 
     static func capture() -> HelloTextDestination? {
         guard AXIsProcessTrusted(), !IsSecureEventInputEnabled(),
               let application = NSWorkspace.shared.frontmostApplication,
               application.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-              let element = focusedElement(), isEditableNonSecureElement(element) else { return nil }
+              let element = focusedElement(), isEditableNonSecureElement(element),
+              let range = selectionRange(of: element),
+              let value = attribute(kAXValueAttribute, of: element) as? String,
+              range.location <= value.utf16.count,
+              range.length <= value.utf16.count - range.location else { return nil }
+        var elementPID: pid_t = 0
+        guard AXUIElementGetPid(element, &elementPID) == .success,
+              elementPID == application.processIdentifier else { return nil }
         return HelloTextDestination(
             applicationIdentifier: application.processIdentifier,
             applicationName: application.localizedName ?? "your app",
             element: element,
-            selectedRange: attribute(kAXSelectedTextRangeAttribute, of: element)
+            selectedRange: range,
+            originalValue: value
         )
     }
 
@@ -30,14 +39,25 @@ struct HelloTextDestination {
               NSWorkspace.shared.frontmostApplication?.processIdentifier == applicationIdentifier,
               let currentElement = Self.focusedElement(), CFEqual(element, currentElement),
               Self.isEditableNonSecureElement(currentElement) else { return false }
-        if let selectedRange {
-            guard let currentRange = Self.attribute(kAXSelectedTextRangeAttribute, of: currentElement),
-                  CFEqual(selectedRange, currentRange) else { return false }
-        }
+        guard let currentRange = Self.selectionRange(of: currentElement),
+              currentRange.location == selectedRange.location,
+              currentRange.length == selectedRange.length,
+              Self.attribute(kAXValueAttribute, of: currentElement) as? String == originalValue else { return false }
         var isSettable = DarwinBoolean(false)
         guard AXUIElementIsAttributeSettable(element, kAXSelectedTextAttribute as CFString, &isSettable) == .success,
               isSettable.boolValue else { return false }
         return AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFString) == .success
+    }
+
+    private static func selectionRange(of element: AXUIElement) -> CFRange? {
+        guard let value = attribute(kAXSelectedTextRangeAttribute, of: element),
+              CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        let axValue = value as! AXValue
+        guard AXValueGetType(axValue) == .cfRange else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(axValue, .cfRange, &range),
+              range.location >= 0, range.length >= 0 else { return nil }
+        return range
     }
 
     private static func focusedElement() -> AXUIElement? {
@@ -49,7 +69,8 @@ struct HelloTextDestination {
     private static func isEditableNonSecureElement(_ element: AXUIElement) -> Bool {
         let role = attribute(kAXRoleAttribute, of: element) as? String
         let subrole = attribute(kAXSubroleAttribute, of: element) as? String
-        guard subrole != kAXSecureTextFieldSubrole else { return false }
+        guard attribute(kAXEnabledAttribute, of: element) as? Bool == true,
+              subrole != kAXSecureTextFieldSubrole else { return false }
         return [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role ?? "")
     }
 

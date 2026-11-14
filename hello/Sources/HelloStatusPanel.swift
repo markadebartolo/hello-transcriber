@@ -43,6 +43,8 @@ private struct HelloRecordingStatus: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "waveform").font(.title2).foregroundStyle(.blue)
+                .scaleEffect(1 + controller.dictation.currentAudioPowerLevel * 0.3)
+                .accessibilityLabel(controller.dictation.isActivelyRecordingAudio ? "Microphone recording" : "Processing")
             VStack(alignment: .leading, spacing: 3) {
                 Text("hello").font(.headline)
                 Text(controller.statusText).font(.caption).lineLimit(2)

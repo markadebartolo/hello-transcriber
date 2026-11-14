@@ -80,7 +80,7 @@ private struct HelloPanel: View {
 
             if !controller.transcript.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("YOUR WORDS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    Text(controller.isBusy ? "LIVE TRANSCRIPT" : "YOUR WORDS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                     ScrollView {
                         Text(controller.transcript).font(.body).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,10 +99,10 @@ private struct HelloPanel: View {
             Divider()
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert).helloPointer()
-                Toggle("Tidy punctuation on this Mac", isOn: $controller.cleanPunctuation)
+                Toggle("Preview punctuation cleanup", isOn: $controller.cleanPunctuation)
                     .disabled(!OnDeviceModel.isAvailable).helloPointer()
                 Text(OnDeviceModel.isAvailable
-                     ? "Cleanup preserves your words and numbers. The original stays available."
+                     ? "Cleanup is review-only and disables automatic insertion. Check the suggestion before copying; punctuation can change meaning."
                      : "Optional cleanup needs Apple Intelligence on a supported Mac with macOS 26 or later.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Apple Speech uses on-device recognition where supported; otherwise audio may be sent to Apple. Hello keeps only the latest transcript in memory. Password fields are excluded. Some apps require Copy and Paste.")

@@ -25,11 +25,11 @@ final class AppleSpeechTranscriptionProvider: BuddyTranscriptionProvider {
 
     func startStreamingSession(
         keyterms: [String],
-        onTranscriptUpdate: @escaping (String) -> Void,
-        onFinalTranscriptReady: @escaping (String) -> Void,
-        onError: @escaping (Error) -> Void
+        onTranscriptUpdate: @escaping @Sendable (String) -> Void,
+        onFinalTranscriptReady: @escaping @Sendable (String) -> Void,
+        onError: @escaping @Sendable (Error) -> Void
     ) async throws -> any BuddyStreamingTranscriptionSession {
-        guard let speechRecognizer = Self.makeBestAvailableSpeechRecognizer() else {
+        guard let speechRecognizer = Self.makeBestAvailableSpeechRecognizer(), speechRecognizer.isAvailable else {
             throw AppleSpeechTranscriptionProviderError(message: "dictation is not available on this mac.")
         }
 
@@ -57,14 +57,18 @@ final class AppleSpeechTranscriptionProvider: BuddyTranscriptionProvider {
     }
 }
 
-private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTranscriptionSession {
+private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTranscriptionSession, @unchecked Sendable {
+    // The audio tap, main actor, and Speech callback may run on different threads.
+    // All request/task/state access is serialized, including endAudio/cancel.
+    private let lock = NSRecursiveLock()
+    private var isCancelled = false
     let finalTranscriptFallbackDelaySeconds: TimeInterval = 1.8
 
     private let recognitionRequest: SFSpeechAudioBufferRecognitionRequest
     private var recognitionTask: SFSpeechRecognitionTask?
-    private let onTranscriptUpdate: (String) -> Void
-    private let onFinalTranscriptReady: (String) -> Void
-    private let onError: (Error) -> Void
+    private let onTranscriptUpdate: @Sendable (String) -> Void
+    private let onFinalTranscriptReady: @Sendable (String) -> Void
+    private let onError: @Sendable (Error) -> Void
 
     private var latestRecognizedText = ""
     private var hasRequestedFinalTranscript = false
@@ -72,9 +76,9 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
 
     init(
         speechRecognizer: SFSpeechRecognizer,
-        onTranscriptUpdate: @escaping (String) -> Void,
-        onFinalTranscriptReady: @escaping (String) -> Void,
-        onError: @escaping (Error) -> Void
+        onTranscriptUpdate: @escaping @Sendable (String) -> Void,
+        onFinalTranscriptReady: @escaping @Sendable (String) -> Void,
+        onError: @escaping @Sendable (Error) -> Void
     ) throws {
         self.recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         self.onTranscriptUpdate = onTranscriptUpdate
@@ -97,17 +101,21 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
     }
 
     func appendAudioBuffer(_ audioBuffer: AVAudioPCMBuffer) {
-        guard !hasRequestedFinalTranscript else { return }
+        lock.lock(); defer { lock.unlock() }
+        guard !isCancelled, !hasDeliveredFinalTranscript, !hasRequestedFinalTranscript else { return }
         recognitionRequest.append(audioBuffer)
     }
 
     func requestFinalTranscript() {
-        guard !hasRequestedFinalTranscript else { return }
+        lock.lock(); defer { lock.unlock() }
+        guard !isCancelled, !hasRequestedFinalTranscript else { return }
         hasRequestedFinalTranscript = true
         recognitionRequest.endAudio()
     }
 
     func cancel() {
+        lock.lock(); defer { lock.unlock() }
+        isCancelled = true
         recognitionTask?.cancel()
         recognitionTask = nil
     }
@@ -116,6 +124,8 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
         result: SFSpeechRecognitionResult?,
         error: Error?
     ) {
+        lock.lock(); defer { lock.unlock() }
+        guard !isCancelled, !hasDeliveredFinalTranscript else { return }
         if let result {
             latestRecognizedText = result.bestTranscription.formattedString
             onTranscriptUpdate(latestRecognizedText)

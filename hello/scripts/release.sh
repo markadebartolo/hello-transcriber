@@ -1,73 +1,88 @@
 #!/bin/bash
-# Build, Developer ID sign, notarize, staple, and verify Hello. Never publishes.
+# prepare: signed candidate only. notarize: requires observed signed smoke evidence.
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-VERSION="${1:-}"
-BUILD_NUMBER="${2:-}"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
-  echo "Usage: bash hello/scripts/release.sh <version: 0.1.0> <build: 1>" >&2; exit 1;
-}
-[[ "$(uname -s)" == "Darwin" ]] || { echo "A Mac with Xcode and Developer ID signing is required." >&2; exit 1; }
-: "${HELLO_SIGNING_IDENTITY:?Set HELLO_SIGNING_IDENTITY to your Developer ID Application certificate name.}"
-: "${HELLO_NOTARY_PROFILE:?Set HELLO_NOTARY_PROFILE to a configured notarytool Keychain profile.}"
-[[ "$HELLO_SIGNING_IDENTITY" == "Developer ID Application:"* ]] || { echo "Developer ID Application identity required." >&2; exit 1; }
-TEAM_IDENTIFIER="${HELLO_TEAM_IDENTIFIER:-QA3AY5HLGM}"
-SOURCE_COMMIT="$(git -C "$ROOT_DIR" rev-parse HEAD)"
-[[ -z "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=all)" ]] || {
-  echo "Commit source changes before a release so the manifest identifies the exact source." >&2; exit 1;
-}
-OUTPUT_DIRECTORY="${HELLO_OUTPUT_DIRECTORY:-$HOME/Hello-Releases/$VERSION-b$BUILD_NUMBER}"
-[[ ! -e "$OUTPUT_DIRECTORY" ]] || { echo "Output already exists: $OUTPUT_DIRECTORY" >&2; exit 1; }
-WORK_DIRECTORY="$(mktemp -d "${TMPDIR:-/tmp}/hello-release.XXXXXX")"
-trap 'rm -rf "$WORK_DIRECTORY"' EXIT
-mkdir -p "$OUTPUT_DIRECTORY"
-
-bash "$ROOT_DIR/hello/scripts/check.sh"
-xcodebuild archive -project "$ROOT_DIR/hello/Hello.xcodeproj" -scheme Hello \
-  -configuration Release -archivePath "$WORK_DIRECTORY/Hello.xcarchive" \
-  -derivedDataPath "$WORK_DIRECTORY/DerivedData" \
-  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$HELLO_SIGNING_IDENTITY" \
-  DEVELOPMENT_TEAM="$TEAM_IDENTIFIER" ENABLE_HARDENED_RUNTIME=YES \
-  OTHER_CODE_SIGN_FLAGS=--timestamp SKIP_INSTALL=NO \
-  MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
-APP_PATH="$WORK_DIRECTORY/Hello.xcarchive/Products/Applications/Hello.app"
-[[ -d "$APP_PATH" ]] || { echo "Archive did not contain Hello.app" >&2; exit 1; }
-[[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")" == "com.markdebartolo.hello" ]] || exit 1
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-codesign -dv --verbose=4 "$APP_PATH" 2> "$OUTPUT_DIRECTORY/signature.txt"
-grep -Fq "TeamIdentifier=$TEAM_IDENTIFIER" "$OUTPUT_DIRECTORY/signature.txt"
-grep -Fq 'Authority=Developer ID Application:' "$OUTPUT_DIRECTORY/signature.txt"
-
-ditto -c -k --keepParent "$APP_PATH" "$WORK_DIRECTORY/Hello-notary.zip"
-xcrun notarytool submit "$WORK_DIRECTORY/Hello-notary.zip" \
-  --keychain-profile "$HELLO_NOTARY_PROFILE" --wait --output-format json \
-  > "$OUTPUT_DIRECTORY/notarization.json"
-python3 - "$OUTPUT_DIRECTORY/notarization.json" <<'PY'
+MODE="${1:?Usage: release.sh prepare VERSION BUILD | notarize RELEASE_DIRECTORY}"
+[[ "$(uname -s)" == Darwin ]]
+if [[ "$MODE" == prepare ]]; then
+  VERSION="${2:?Version required}"; BUILD="${3:?Build required}"
+  [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$BUILD" =~ ^[1-9][0-9]*$ ]]
+  : "${HELLO_SIGNING_IDENTITY:?Set a verified Developer ID Application identity}"
+  : "${HELLO_OUTPUT_DIRECTORY:?Set an output directory outside the source repository}"
+  [[ "$HELLO_SIGNING_IDENTITY" =~ ^Developer\ ID\ Application:.*\ \(([A-Z0-9]{10})\)$ ]]
+  TEAM="${BASH_REMATCH[1]}"
+  security find-identity -v -p codesigning | grep -Fq "\"$HELLO_SIGNING_IDENTITY\""
+  [[ -z "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=all)" ]] || { echo 'Commit all source first.' >&2; exit 1; }
+  SOURCE="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+  grep -Fxq "# Hello $VERSION" "$ROOT_DIR/hello/RELEASE_NOTES.md"
+  OUT="$HELLO_OUTPUT_DIRECTORY"
+  [[ ! -e "$OUT" ]] || { echo 'Output exists; use a new build directory.' >&2; exit 1; }
+  mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
+  case "$OUT/" in "$ROOT_DIR/"*) echo 'Output must be outside the source tree.' >&2; exit 1;; esac
+  bash "$ROOT_DIR/hello/scripts/check.sh"
+  xcodebuild -quiet archive -project "$ROOT_DIR/hello/Hello.xcodeproj" -scheme Hello \
+    -configuration Release -destination 'generic/platform=macOS' \
+    -archivePath "$OUT/Hello.xcarchive" -derivedDataPath "$OUT/DerivedData" \
+    CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$HELLO_SIGNING_IDENTITY" DEVELOPMENT_TEAM="$TEAM" \
+    ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS=--timestamp SKIP_INSTALL=NO \
+    ONLY_ACTIVE_ARCH=NO MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD"
+  ditto "$OUT/Hello.xcarchive/Products/Applications/Hello.app" "$OUT/Hello.app"
+  # License notices travel with the binary as well as the source distribution.
+  cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/NOTICES.md" "$OUT/Hello.app/Contents/Resources/"
+  codesign --force --sign "$HELLO_SIGNING_IDENTITY" --options runtime --timestamp \
+    --entitlements "$ROOT_DIR/hello/Hello.entitlements" "$OUT/Hello.app"
+  bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
+  cp "$ROOT_DIR/hello/RELEASE_NOTES.md" "$OUT/RELEASE_NOTES.md"
+  python3 - "$OUT" "$SOURCE" "$VERSION" "$BUILD" "$TEAM" <<'PY'
+import datetime, json, pathlib, re, subprocess, sys
+out, source, version, build, team = sys.argv[1:]; root = pathlib.Path(out)
+hashes = {}
+for arch in ('arm64', 'x86_64'):
+    result = subprocess.run(['codesign', '-dv', '--arch', arch, str(root/'Hello.app')], capture_output=True, text=True, check=True)
+    hashes[arch] = re.search(r'^CDHash=(.+)$', result.stderr, re.M)[1]
+(root/'release-manifest.json').write_text(json.dumps(dict(product='Hello', version=version, build=build,
+    source_commit=source, bundle_identifier='com.markdebartolo.hello', team_identifier=team,
+    app_cdhashes=hashes, created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    notarization_status='not submitted', manual_smoke_test='pending'), indent=2)+'\n')
+PY
+  printf '%s\n' "Signed candidate: $OUT/Hello.app. Run SMOKE_TEST.md before notarization."
+elif [[ "$MODE" == notarize ]]; then
+  OUT="$(cd "${2:?Release directory required}" && pwd)"
+  : "${HELLO_NOTARY_PROFILE:?Set the existing notarytool Keychain profile name}"
+  python3 "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" signed
+  TEAM="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["team_identifier"])' "$OUT/release-manifest.json")"
+  bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
+  python3 - "$OUT" <<'PY'
+import json, pathlib, re, subprocess, sys
+root = pathlib.Path(sys.argv[1]); manifest = json.loads((root/'release-manifest.json').read_text())
+for arch, checksum in manifest['app_cdhashes'].items():
+    result = subprocess.run(['codesign','-dv','--arch',arch,str(root/'Hello.app')], capture_output=True,text=True,check=True)
+    assert re.search(r'^CDHash=(.+)$', result.stderr, re.M)[1] == checksum, 'App changed after smoke test'
+PY
+  ditto -c -k --keepParent "$OUT/Hello.app" "$OUT/notary-upload.zip"
+  xcrun notarytool submit "$OUT/notary-upload.zip" --keychain-profile "$HELLO_NOTARY_PROFILE" \
+    --wait --output-format json > "$OUT/notarization.json"
+  python3 - "$OUT/notarization.json" <<'PY'
 import json, sys
-result = json.load(open(sys.argv[1]))
-if result.get('status') != 'Accepted':
-    raise SystemExit('Apple did not accept the app. See notarization.json; nothing may be published.')
+assert json.load(open(sys.argv[1])).get('status') == 'Accepted', 'Apple did not accept this app'
 PY
-xcrun stapler staple "$APP_PATH"
-xcrun stapler validate "$APP_PATH"
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-spctl --assess --type execute --verbose=2 "$APP_PATH"
-ARTIFACT_NAME="Hello-$VERSION-b$BUILD_NUMBER.zip"
-ditto -c -k --keepParent "$APP_PATH" "$OUTPUT_DIRECTORY/$ARTIFACT_NAME"
-cp "$ROOT_DIR/hello/RELEASE_NOTES.md" "$OUTPUT_DIRECTORY/RELEASE_NOTES.md"
-python3 - "$OUTPUT_DIRECTORY" "$ARTIFACT_NAME" "$SOURCE_COMMIT" "$VERSION" "$BUILD_NUMBER" "$TEAM_IDENTIFIER" <<'PY'
+  xcrun stapler staple "$OUT/Hello.app"
+  xcrun stapler validate "$OUT/Hello.app"
+  bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
+  spctl --assess --type execute --verbose=2 "$OUT/Hello.app"
+  ARTIFACT="$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print("Hello-"+m["version"]+"-b"+m["build"]+".zip")' "$OUT/release-manifest.json")"
+  ditto -c -k --keepParent "$OUT/Hello.app" "$OUT/$ARTIFACT"
+  python3 - "$OUT" "$ARTIFACT" <<'PY'
 import hashlib, json, pathlib, sys
-directory, artifact, source, version, build, team = sys.argv[1:]
-root = pathlib.Path(directory)
-checksum = hashlib.sha256((root / artifact).read_bytes()).hexdigest()
-(root / 'SHA256SUMS').write_text(f'{checksum}  {artifact}\n')
-(root / 'release-manifest.json').write_text(json.dumps({
-    'product': 'Hello', 'version': version, 'build': build,
-    'source_commit': source, 'bundle_identifier': 'com.markdebartolo.hello',
-    'team_identifier': team, 'artifact': artifact, 'sha256': checksum,
-    'notarization_status': 'Accepted', 'staple_validated': True,
-    'gatekeeper_accepted': True, 'manual_smoke_test': 'pending'
-}, indent=2) + '\n')
+root=pathlib.Path(sys.argv[1]); artifact=sys.argv[2]
+checksum=hashlib.sha256((root/artifact).read_bytes()).hexdigest()
+m=json.loads((root/'release-manifest.json').read_text())
+m.update(artifact=artifact, sha256=checksum, notarization_status='Accepted', manual_smoke_test='passed',
+         staple_validated=True, gatekeeper_accepted=True, downloaded_smoke_test='pending')
+(root/'release-manifest.json').write_text(json.dumps(m,indent=2)+'\n')
+(root/'SHA256SUMS').write_text(f'{checksum}  {artifact}\n')
 PY
-echo "Verified notarized archive: $OUTPUT_DIRECTORY/$ARTIFACT_NAME"
-echo "Not published. Complete hello/SMOKE_TEST.md on a signed Mac before publishing."
+  printf '%s\n' "Notarized artifact: $OUT/$ARTIFACT. Not published."
+else
+  echo 'Unknown release mode.' >&2; exit 1
+fi
