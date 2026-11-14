@@ -57,7 +57,7 @@ final class AppleSpeechTranscriptionProvider: BuddyTranscriptionProvider {
     }
 }
 
-private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTranscriptionSession, @unchecked Sendable {
+private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTranscriptionSession, SFSpeechRecognitionTaskDelegate, @unchecked Sendable {
     // The audio tap, main actor, and Speech callback may run on different threads.
     // All request/task/state access is serialized, including endAudio/cancel.
     private let lock = NSRecursiveLock()
@@ -65,6 +65,13 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
     let finalTranscriptFallbackDelaySeconds: TimeInterval = 1.8
 
     private let recognitionRequest: SFSpeechAudioBufferRecognitionRequest
+    private let recognitionQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "Hello.SpeechCallbacks"
+        queue.maxConcurrentOperationCount = 1
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
     private var recognitionTask: SFSpeechRecognitionTask?
     private let onTranscriptUpdate: @Sendable (String) -> Void
     private let onFinalTranscriptReady: @Sendable (String) -> Void
@@ -95,9 +102,10 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
             recognitionRequest.requiresOnDeviceRecognition = true
         }
 
-        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            self?.handleRecognitionEvent(result: result, error: error)
-        }
+        // Speech defaults to the main operation queue. Keep provisional-word
+        // delivery independent of UI rendering; Buddy performs the actor hop.
+        speechRecognizer.queue = recognitionQueue
+        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest, delegate: self)
     }
 
     func appendAudioBuffer(_ audioBuffer: AVAudioPCMBuffer) {
@@ -120,29 +128,39 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
         recognitionTask = nil
     }
 
-    private func handleRecognitionEvent(
-        result: SFSpeechRecognitionResult?,
-        error: Error?
-    ) {
+    func speechRecognitionTask(_ task: SFSpeechRecognitionTask,
+                               didHypothesizeTranscription transcription: SFTranscription) {
         lock.lock(); defer { lock.unlock() }
         guard !isCancelled, !hasDeliveredFinalTranscript else { return }
-        if let result {
-            latestRecognizedText = result.bestTranscription.formattedString
-            onTranscriptUpdate(latestRecognizedText)
+        // Forward every hypothesis immediately, including revisions of a word.
+        latestRecognizedText = transcription.formattedString
+        onTranscriptUpdate(latestRecognizedText)
+    }
 
-            if result.isFinal {
-                deliverFinalTranscriptIfNeeded(latestRecognizedText)
-                return
-            }
-        }
+    func speechRecognitionTask(_ task: SFSpeechRecognitionTask,
+                               didFinishRecognition result: SFSpeechRecognitionResult) {
+        lock.lock(); defer { lock.unlock() }
+        guard !isCancelled, !hasDeliveredFinalTranscript else { return }
+        latestRecognizedText = result.bestTranscription.formattedString
+        onTranscriptUpdate(latestRecognizedText)
+        if result.isFinal { deliverFinalTranscriptIfNeeded(latestRecognizedText) }
+    }
 
-        guard let error else { return }
-
-        if hasRequestedFinalTranscript && !latestRecognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        guard !isCancelled, !hasDeliveredFinalTranscript else { return }
+        if successfully || (hasRequestedFinalTranscript && !latestRecognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
             deliverFinalTranscriptIfNeeded(latestRecognizedText)
         } else {
-            onError(error)
+            onError(task.error ?? AppleSpeechTranscriptionProviderError(message: "Speech recognition stopped before finishing."))
         }
+    }
+
+    func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask) {
+        lock.lock(); defer { lock.unlock() }
+        guard !isCancelled, !hasDeliveredFinalTranscript else { return }
+        isCancelled = true
+        onError(AppleSpeechTranscriptionProviderError(message: "Speech recognition was interrupted. Please try again."))
     }
 
     private func deliverFinalTranscriptIfNeeded(_ transcriptText: String) {

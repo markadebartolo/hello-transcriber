@@ -160,3 +160,21 @@ black on white; the active combined HUD is 144 × 60 points. Partial revisions
 appear immediately with no stale playback queue or timer. Grapheme-based coloring
 preserves accents and emoji. The full provisional transcript remains in Hello;
 the compact preview can skip earlier words when recognition delivers a batch.
+
+## November 14, 2026 — direct provisional speech callbacks
+
+The user confirmed build 16 inserted successfully, but reported delayed word
+changes. The caption already has no debounce, playback timer or word animation.
+Apple Speech now uses a dedicated serial user-initiated callback queue instead
+of its default main queue, and forwards didHypothesizeTranscription directly to
+the existing generation-checked MainActor callback. Final recognition, error and
+system cancellation have explicit delegate handlers; cancellation still suppresses
+late hypotheses. Punctuation, on-device preference, finalization timeout and the
+final transcript policy are unchanged. No second recognizer or cloud service was
+added. Updated the current provider checksum; original provenance remains intact.
+
+Apple controls hypothesis cadence, so this removes UI-queue contention rather
+than promising a fixed latency or earlier words from the recognition engine.
+The speed improvement still needs physical comparison on the signed app.
+API references: [recognizer callback queue](https://developer.apple.com/documentation/speech/sfspeechrecognizer/queue)
+and [provisional transcription delegate](https://developer.apple.com/documentation/speech/sfspeechrecognitiontaskdelegate/speechrecognitiontask(_:didhypothesizetranscription:)).

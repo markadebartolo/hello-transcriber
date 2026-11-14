@@ -38,7 +38,8 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
   recognition shows one newest word in a 144 × 24-point preview above it. A red
   focus letter stays at a fixed position; the other letters are black on white.
   Words update immediately with Apple's partial results, without queued playback;
-  recognition can revise or skip earlier words. The full
+  provisional speech callbacks run separately from UI rendering. Apple still
+  determines how soon words arrive; recognition can revise or skip earlier words. The full
   transcript is in Hello. These partial results are provisional, not a guarantee
   of accuracy or an approval step before insertion. Release shows
   **Transcribing…** until finalization ends. If capture stops early, the indicator
