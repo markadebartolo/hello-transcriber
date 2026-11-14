@@ -9,8 +9,9 @@ struct HelloApp: App {
         MenuBarExtra {
             HelloPanel(controller: controller)
         } label: {
-            Label(controller.dictation.isActivelyRecordingAudio ? "Hello · Listening" : "Hello",
-                  systemImage: controller.isBusy ? "waveform" : "waveform.circle")
+            Image("HelloWaveform")
+                .accessibilityLabel(controller.dictation.isActivelyRecordingAudio ? "Hello · Listening" : "Hello")
+                .opacity(controller.isBusy ? 0.65 : 1)
         }
         .menuBarExtraStyle(.window)
     }
@@ -28,8 +29,8 @@ private struct HelloPanel: View {
                     Text("A little less typing.").foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 40)).foregroundStyle(.blue)
+                Image("HelloWaveform").resizable().scaledToFit()
+                    .frame(width: 54, height: 36).foregroundStyle(.blue)
                     .accessibilityHidden(true)
             }
 

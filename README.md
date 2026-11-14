@@ -72,6 +72,13 @@ development. Do not launch an unsigned CI product. macOS CI deliberately uploads
 no application artifacts. See [contributing](CONTRIBUTING.md) and
 [release procedure](hello/RELEASING.md).
 
+## The mark
+
+The waveform is measured from “hello” spoken by the local macOS Samantha voice.
+Its 25 bars represent normalized audio energy over the word; small icons use grouped
+bins for legibility. The sample metadata and reproducible native renderer are in
+`hello/brand/`. No voice recording ships in the application.
+
 ## Source and license
 
 Hello uses real dictation modules extracted from Mark DeBartolo's Dorsal baseline
