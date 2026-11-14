@@ -58,10 +58,12 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
 ## Voice form filling (optional)
 
-Open Hello → **Voice form filling (OpenAI)**. Enter your personal OpenAI API key in
-the secure field and choose **Save key**. The key stays in this Mac's Keychain and
-is sent only to OpenAI for authentication. Enable Screen Recording, then turn on
-**Send window to OpenAI and fill empty fields**. This switch defaults off each launch.
+Open Hello → **Voice form filling**. Choose **OpenAI**, **Anthropic**, or
+**OpenRouter**, enter that service's API key in the secure field, and choose
+**Save key**. Each provider has its own local Keychain entry. The key is sent only
+to the selected service's fixed HTTPS API endpoint; Hello never tries it against
+another provider. Enable Screen Recording, then turn on **Send window to [provider]
+and fill empty fields**. Switching providers turns this opt-in off again. This switch defaults off each launch.
 Normal dictation and local cleanup do not require an API key or screen access.
 
 Open a form, leave its fields empty, and hold Control + Option. For example:
@@ -79,9 +81,23 @@ spans preserve spelling, numbers and punctuation as Apple Speech transcribed the
 This mode does not apply punctuation cleanup. It cannot recover a transcription
 mistake or guarantee a model's interpretation of intent; always review filled forms.
 
-A screenshot of the active window, empty-field labels/bounds, and the transcript
-are sent to the OpenAI Responses API using `gpt-4.1-mini`. API usage requires an
-account with access and available usage/billing. The screenshot can contain private
+Each user brings their own key. The maintainer's key is never in the source or app.
+Normal transcription and local cleanup do not require any external provider key.
+The selected service receives the active-window screenshot, field labels/bounds,
+and transcript:
+
+| Provider | API and default model |
+| --- | --- |
+| OpenAI | Responses API · `gpt-4.1-mini` |
+| Anthropic | Messages API · `claude-sonnet-4-5` |
+| OpenRouter | Responses API · `openai/gpt-4.1-mini` |
+
+Use an ordinary inference key, never an administration key. For OpenAI, use a
+restricted key with **Responses → Write** and other categories **None**. API usage
+requires that provider's account, model access, and available usage/billing.
+OpenRouter forwards requests to a routed model provider; Hello requires schema
+support and requests `data_collection: deny`. This is not a zero-retention promise.
+There is no automatic fallback to a different configured service. The screenshot can contain private
 page content beyond the intended fields. No screenshot is saved by Hello. Windows
 with detected password controls/Secure Input are refused; this is not a general
 screenshot redaction system. See [privacy](PRIVACY.md).
@@ -105,7 +121,7 @@ not a claim of microphone testing on every OS/hardware combination.
 Use Xcode **16+** with Swift 6 for the app and tests. Use Xcode 26+ to compile in
 Foundation Models support; older SDKs omit cleanup. No package downloads, Dorsal
 checkout, or private services are required. An API key is needed only for optional
-OpenAI form filling, not to build or run normal dictation.
+AI form filling, not to build or run normal dictation.
 
 ```sh
 git clone https://github.com/markadebartolo/hello-transcriber.git

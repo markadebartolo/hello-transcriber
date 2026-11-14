@@ -163,15 +163,21 @@ private struct HelloPanel: View {
             }
 
             Divider()
-            DisclosureGroup("Voice form filling (OpenAI)", isExpanded: $showsFormSettings) {
+            DisclosureGroup("Voice form filling", isExpanded: $showsFormSettings) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("When enabled, each dictation sends your transcript, a screenshot of the active window, and empty-field labels to OpenAI. The screenshot may contain other private page content. API usage is billed to your account.")
+                    Picker("AI provider", selection: $controller.formProvider) {
+                        ForEach(HelloAIProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }.disabled(controller.isBusy)
+                    Text("Model: \(controller.formProvider.model)").font(.caption).foregroundStyle(.secondary)
+                    Text("When enabled, each dictation sends your transcript, a screenshot of the active window, and empty-field labels to \(controller.formProvider.recipientDescription). The screenshot may contain other private page content. API usage is billed to your account.")
                         .font(.caption).foregroundStyle(.secondary)
-                    Toggle("Send window to OpenAI and fill empty fields", isOn: $controller.formMode)
+                    Toggle("Send window to \(controller.formProvider.displayName) and fill empty fields", isOn: $controller.formMode)
                         .disabled(controller.isBusy).helloPointer()
                     Text("Speak one answer or several labeled answers. No field needs to be selected. Clear matches fill automatically; uncertain matches copy the original transcript to the clipboard. Existing values stay untouched. Screenshots are not saved by Hello. Switching apps, typing, or clicking cancels the destination.")
                         .font(.caption).foregroundStyle(.secondary)
-                    SecureField("OpenAI API key", text: $apiKey)
+                    SecureField("\(controller.formProvider.displayName) API key", text: $apiKey)
                         .textFieldStyle(.roundedBorder)
                     HStack {
                         Button("Save key") { controller.saveAPIKey(apiKey); apiKey = "" }
@@ -179,7 +185,7 @@ private struct HelloPanel: View {
                         Button("Check saved key") { controller.checkAPIKey() }.disabled(controller.isBusy)
                         Button("Remove key") { controller.removeAPIKey() }.disabled(controller.isBusy)
                     }
-                    if controller.hasAPIKey { Text("API key is available in Keychain.").font(.caption) }
+                    if controller.hasAPIKey { Text("\(controller.formProvider.displayName) key is available in Keychain.").font(.caption) }
                     if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
                     Button("Enable Screen Recording") { controller.requestScreenAccess() }.disabled(controller.isBusy)
                     Text("Screen Recording is needed only for this optional mode. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
@@ -209,6 +215,7 @@ private struct HelloPanel: View {
         .frame(width: 420)
         .buttonStyle(HelloButtonStyle())
         .onAppear { controller.refreshShortcut() }
+        .onChange(of: controller.formProvider) { _, _ in apiKey = "" }
     }
 }
 

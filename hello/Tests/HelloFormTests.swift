@@ -64,6 +64,50 @@ struct HelloFormTests {
             do { _ = try HelloFormPlanner.decode(invalid, transcript: text, fields: fields); fatalError("invalid response accepted") }
             catch { /* expected */ }
         }
-        print("Form regressions passed: exact values, unknown/duplicate fields, ambiguity, interrupted/partial writes, request privacy, refusals and malformed/incomplete responses. No API call or UI interaction performed.")
+        // Each service receives only its own authentication header and native
+        // request format. Fake credentials never leave this test process.
+        precondition(Set(HelloAIProvider.allCases.map(\.keychainService)).count == 3)
+        precondition(HelloAIProvider.openAI.keychainService == "com.markdebartolo.hello.openai")
+        for provider in HelloAIProvider.allCases {
+            let apiRequest = try HelloFormPlanner.makeRequest(transcript: text, fields: fields, image: Data([1,2,3]),
+                                                              key: "fixture-key-not-secret", provider: provider)
+            precondition(apiRequest.url == provider.endpoint && apiRequest.httpMethod == "POST")
+            let payload = try JSONSerialization.jsonObject(with: apiRequest.httpBody!) as! [String: Any]
+            precondition(payload["model"] as? String == provider.model && payload["tools"] == nil)
+            if provider == .anthropic {
+                precondition(apiRequest.value(forHTTPHeaderField: "x-api-key") == "fixture-key-not-secret")
+                precondition(apiRequest.value(forHTTPHeaderField: "Authorization") == nil)
+                precondition(apiRequest.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01")
+                precondition(payload["messages"] != nil && payload["output_config"] != nil && payload["input"] == nil)
+            } else {
+                precondition(apiRequest.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-key-not-secret")
+                precondition(apiRequest.value(forHTTPHeaderField: "x-api-key") == nil)
+                precondition(payload["store"] as? Bool == false && payload["input"] != nil && payload["messages"] == nil)
+                let plan = try HelloFormPlanner.decode(envelope, transcript: text, fields: fields, provider: provider)
+                precondition(plan == good)
+            }
+            if provider == .openRouter {
+                let routing = payload["provider"] as! [String: Any]
+                precondition(routing["require_parameters"] as? Bool == true)
+                precondition(routing["data_collection"] as? String == "deny")
+            }
+        }
+        func anthropicResponse(_ reason: String, _ content: [[String: String]]) throws -> Data {
+            try JSONSerialization.data(withJSONObject: ["type": "message", "stop_reason": reason, "content": content])
+        }
+        let claude = try anthropicResponse("end_turn", [["type": "text", "text": encoded]])
+        let claudePlan = try HelloFormPlanner.decode(claude, transcript: text, fields: fields, provider: .anthropic)
+        precondition(claudePlan == good)
+        for invalid in [
+            try anthropicResponse("max_tokens", [["type": "text", "text": encoded]]),
+            try anthropicResponse("refusal", [["type": "text", "text": encoded]]),
+            try anthropicResponse("end_turn", [["type": "tool_use", "name": "run_command"]]),
+            try anthropicResponse("end_turn", [["type": "text", "text": encoded], ["type": "text", "text": encoded]]),
+            try anthropicResponse("end_turn", [["type": "text", "text": "broken JSON"]])
+        ] {
+            do { _ = try HelloFormPlanner.decode(invalid, transcript: text, fields: fields, provider: .anthropic); fatalError("invalid Anthropic output accepted") }
+            catch { /* expected */ }
+        }
+        print("Form regressions passed: exact values, unknown/duplicate fields, ambiguity, interrupted/partial writes, three provider request/auth formats, isolated credential namespaces, request privacy, refusals and malformed/incomplete responses. No API call or UI interaction performed.")
     }
 }

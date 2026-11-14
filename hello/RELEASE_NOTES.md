@@ -13,9 +13,9 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
 - Session generations prevent quick-release and stale-callback races. Capture is
   cancelled on failure/sleep/reconfiguration and bounded to 60 seconds.
 - Visible setup window at launch and Finder reopen; actual spoken-“hello” waveform logo.
-- Optional OpenAI voice form filling maps a dictation to one or many empty fields
+- Optional BYOK voice form filling (OpenAI, Anthropic or OpenRouter) maps a dictation to one or many empty fields
   without selecting them. Explicit cloud opt-in, window screenshot permission,
-  personal Keychain API key, original-window checks, exact transcript spans and
+  separate personal Keychain API keys, original-window checks, exact transcript spans and
   per-value Copy for ambiguity. Existing values and detected secure fields excluded.
   Cloud inference is fallible; review forms before submitting. Partial writes stop
   and report their verified count. No Submit/Send is generated.

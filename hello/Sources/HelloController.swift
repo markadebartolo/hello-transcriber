@@ -13,6 +13,17 @@ final class HelloController: ObservableObject {
     @Published private(set) var resultMessage = "Hold Control + Option in a text field."
     @Published private(set) var isProcessingTranscript = false
     @Published private(set) var isRequestingPermissions = false
+    @Published var formProvider = HelloAIProvider(rawValue: UserDefaults.standard.string(forKey: "Hello.formProvider") ?? "") ?? .openAI {
+        didSet {
+            guard oldValue != formProvider else { return }
+            cancel()
+            formMode = false // A different data recipient requires a fresh opt-in.
+            hasAPIKey = false
+            keyMessage = ""
+            UserDefaults.standard.set(formProvider.rawValue, forKey: "Hello.formProvider")
+        }
+    }
+    private var sessionProvider = HelloAIProvider.openAI
     @Published var formMode = false {
         didSet { if oldValue != formMode { cancel() } }
     }
@@ -96,17 +107,20 @@ final class HelloController: ObservableObject {
 
     func saveAPIKey(_ value: String) {
         guard !isBusy else { return }
-        if HelloAPIKey.save(value) {
+        if HelloAPIKey.save(value, for: formProvider) {
             hasAPIKey = true
             keyMessage = "Key saved in this Mac's Keychain."
         } else { keyMessage = "Could not save the key. Unlock Keychain and try again." }
     }
 
-    func checkAPIKey() { hasAPIKey = HelloAPIKey.read() != nil }
+    func checkAPIKey() {
+        hasAPIKey = HelloAPIKey.read(for: formProvider) != nil
+        keyMessage = hasAPIKey ? "\(formProvider.displayName) key is available in Keychain." : "No saved \(formProvider.displayName) key."
+    }
 
     func removeAPIKey() {
         cancel()
-        if HelloAPIKey.remove() { hasAPIKey = false; keyMessage = "Key removed." }
+        if HelloAPIKey.remove(for: formProvider) { hasAPIKey = false; keyMessage = "Key removed." }
         else { keyMessage = "Keychain could not remove the key." }
     }
 
@@ -175,8 +189,8 @@ final class HelloController: ObservableObject {
             resultMessage = "Open Hello and enable Screen Recording for form filling."
             return
         }
-        if formMode && HelloAPIKey.read() == nil {
-            resultMessage = "Add your OpenAI API key in Hello first."
+        if formMode && HelloAPIKey.read(for: formProvider) == nil {
+            resultMessage = "Add your \(formProvider.displayName) API key in Hello first."
             return
         }
         dismissResult()
@@ -184,6 +198,7 @@ final class HelloController: ObservableObject {
         sessionIdentifier = identifier
         contextIdentifier = UUID()
         sessionUsesForms = formMode
+        sessionProvider = formProvider
         formPreview = []
         formFields = []
         formMessage = ""
@@ -273,6 +288,7 @@ final class HelloController: ObservableObject {
             return
         }
         let revision = contextIdentifier
+        let provider = sessionProvider
         isProcessingTranscript = true
         formFields = context.fields
         cleanupTimeoutTask?.cancel()
@@ -292,8 +308,8 @@ final class HelloController: ObservableObject {
                 let image = try await context.screenshot()
                 guard !Task.isCancelled, sessionIdentifier == identifier else { return }
                 guard contextIdentifier == revision else { throw HelloFormError.unavailable("The original form changed.") }
-                guard let key = HelloAPIKey.read() else { throw HelloFormError.unavailable("API key unavailable. Use Copy.") }
-                let plan = try await HelloFormPlanner.plan(transcript: text, fields: context.fields, image: image, key: key)
+                guard let key = HelloAPIKey.read(for: provider) else { throw HelloFormError.unavailable("API key unavailable. Use Copy.") }
+                let plan = try await HelloFormPlanner.plan(transcript: text, fields: context.fields, image: image, key: key, provider: provider)
                 guard !Task.isCancelled, sessionIdentifier == identifier else { return }
                 guard contextIdentifier == revision else { throw HelloFormError.unavailable("The original form changed.") }
                 formPreview = plan.assignments

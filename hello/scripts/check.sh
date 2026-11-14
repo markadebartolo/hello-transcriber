@@ -19,7 +19,7 @@ xcrun swiftc "${SWIFT_FLAGS[@]}" \
   "$ROOT_DIR/hello/Tests/HelloLifecycleTests.swift" -o "$CHECK_DIR/lifecycle-tests"
 "$CHECK_DIR/lifecycle-tests"
 xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloFormPolicy.swift" \
-  "$ROOT_DIR/hello/Sources/HelloFormPlanner.swift" "$ROOT_DIR/hello/Tests/HelloFormTests.swift" -o "$CHECK_DIR/form-tests"
+  "$ROOT_DIR/hello/Sources/HelloAIProvider.swift" "$ROOT_DIR/hello/Sources/HelloFormPlanner.swift" "$ROOT_DIR/hello/Tests/HelloFormTests.swift" -o "$CHECK_DIR/form-tests"
 "$CHECK_DIR/form-tests"
 xcodebuild -quiet -project "$ROOT_DIR/hello/Hello.xcodeproj" -scheme Hello \
   -configuration Debug -destination 'generic/platform=macOS' -derivedDataPath "$CHECK_DIR/DerivedData" \

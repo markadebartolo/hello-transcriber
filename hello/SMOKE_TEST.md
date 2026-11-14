@@ -34,7 +34,9 @@ Required checks (the IDs are release-gate keys):
 - [ ] **service_failure:** unavailable speech service/offline failure is visible,
   stops capture and allows retry. Record whether local speech actually works
   offline; do not infer this from supportsOnDeviceRecognition alone.
-- [ ] **forms:** use a disposable local form and a test API account. Default off;
+- [ ] **forms:** use a disposable local form and a test API account. Check provider selection, isolated key save/read/remove,
+  and fresh opt-in after switching provider. Exercise each available service with
+  disposable data; explicitly record any service not live-tested, never invent a pass. Default off;
   no screen/API access in normal mode. Save/check/remove key without logs; deny and
   recover screen access. Speak single-field intent without focus, then multiple
   labeled answers; observe exact values in correct empty fields and no submission.

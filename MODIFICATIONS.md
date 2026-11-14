@@ -85,3 +85,15 @@ Added a regression that invokes the real bridge off-main with granted/denied res
 and synchronously, verifying resumption on MainActor. The reviewed current manager
 checksum changed; original provenance hashes remain intact. Permission dialogs
 no longer display a misleading in-app Cancel button that cannot dismiss macOS TCC.
+
+## November 14, 2026 — three-provider BYOK
+
+Added explicit OpenAI, Anthropic and OpenRouter adapters and separate Keychain
+service names, preserving the existing OpenAI entry. Provider selection is local;
+changing it cancels pending work and disables cloud form filling until re-enabled.
+No maintainer key, shared backend or cross-service key fallback was introduced.
+Requests use each documented native vision/structured-output format, fixed HTTPS
+endpoints and redirect rejection. OpenRouter requires schema support and requests
+non-collecting provider routing. Common exact-span and destination checks remain.
+Fixture tests cover all three request/auth formats and provider-specific incomplete,
+refused and malformed responses. They do not claim live Anthropic/OpenRouter access.
