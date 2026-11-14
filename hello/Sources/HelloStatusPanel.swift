@@ -8,7 +8,7 @@ final class HelloStatusPanel {
     private var subscription: AnyCancellable?
 
     init(controller: HelloController) {
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 132),
+        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 168, height: 34),
                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -25,7 +25,7 @@ final class HelloStatusPanel {
                     if !panel.isVisible {
                         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
                         if let screen {
-                            panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 190, y: screen.visibleFrame.minY + 34))
+                            panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 84, y: screen.visibleFrame.minY + 34))
                         }
                         // Display without activation so the destination field keeps focus.
                         panel.orderFrontRegardless()
@@ -43,42 +43,48 @@ private struct HelloRecordingStatus: View {
 
     var body: some View {
         let feedback = controller.recordingFeedback
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: feedback.showsLiveWaveform ? "mic.fill" : feedback.phase == .stopped ? "mic.slash.fill" : "waveform")
-                    .foregroundStyle(feedback.showsLiveWaveform ? Color.blue : Color.secondary)
-                    .accessibilityHidden(true)
-                Text(feedback.title).font(.headline)
-                Spacer()
-                if controller.shortcutMonitor.isShortcutCurrentlyPressed {
-                    Text("⌃ ⌥ held").font(.caption.monospaced()).foregroundStyle(.secondary)
-                }
-                Button(action: { if controller.isBusy { controller.cancel() } else { controller.dismissResult() } }) { Image(systemName: "xmark") }
-                    .accessibilityLabel(controller.isBusy ? "Cancel dictation" : "Dismiss result").buttonStyle(HelloButtonStyle())
-                    .disabled(controller.shortcutMonitor.isShortcutCurrentlyPressed && !controller.isBusy)
-            }
+        HStack(spacing: 7) {
             if feedback.showsLiveWaveform {
-                HStack(alignment: .center, spacing: 3) {
-                    ForEach(Array(controller.dictation.recordedAudioPowerHistory.enumerated()), id: \.offset) { _, level in
+                HStack(alignment: .center, spacing: 2) {
+                    ForEach(Array(controller.dictation.recordedAudioPowerHistory.suffix(12).enumerated()), id: \.offset) { _, level in
                         Capsule().fill(Color.blue)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(3, min(1, max(0, level)) * 32))
+                            .frame(width: 2, height: max(2, min(1, max(0, level)) * 18))
                     }
                 }
-                .frame(height: 32)
+                .frame(width: 46, height: 18)
                 .animation(reduceMotion ? nil : .linear(duration: 0.07), value: controller.dictation.recordedAudioPowerHistory)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Live microphone waveform")
             } else if feedback.phase == .starting || feedback.phase == .transcribing || feedback.phase == .processing {
-                ProgressView().controlSize(.small).frame(height: 32)
+                ProgressView().controlSize(.mini).frame(width: 12, height: 12)
+            } else if feedback.phase == .stopped {
+                Image(systemName: "mic.slash.fill").foregroundStyle(.secondary).accessibilityHidden(true)
             }
-            Text(feedback.phase == .stopped
-                 ? "\(controller.statusText) Release the keys to try again."
-                 : controller.statusText)
-                .font(.caption).lineLimit(3)
+            Text(compactTitle)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(controller.statusText)
+                .accessibilityLabel("\(feedback.title). \(controller.statusText)")
+            Button(action: { if controller.isBusy { controller.cancel() } else { controller.dismissResult() } }) {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                    .frame(width: 20, height: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(controller.isBusy ? "Cancel dictation" : "Dismiss result")
+            .disabled(controller.shortcutMonitor.isShortcutCurrentlyPressed && !controller.isBusy)
         }
-        .padding(16)
-        .frame(width: 380, height: 132, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .padding(.horizontal, 10)
+        .frame(width: 168, height: 34)
+        .background(.regularMaterial, in: Capsule())
+    }
+
+    private var compactTitle: String {
+        switch controller.recordingFeedback.phase {
+        case .starting: return "Starting…"
+        case .stopped: return "Stopped"
+        case .result: return controller.resultMessage
+        default: return controller.recordingFeedback.title
+        }
     }
 }
