@@ -314,14 +314,14 @@ final class HelloController: ObservableObject {
             allowsApplePreview: speechReady,
             onApplePreview: { [weak self] text in
                 Task { @MainActor in
-                    guard let self, sessionIdentifier == identifier, dictation.isActivelyRecordingAudio else { return }
-                    provisionalTranscript = text
+                    guard let self, self.sessionIdentifier == identifier, self.dictation.isActivelyRecordingAudio else { return }
+                    self.provisionalTranscript = text
                 }
             },
             onAppleFallback: { [weak self] reason in
                 Task { @MainActor in
-                    guard let self, sessionIdentifier == identifier else { return }
-                    speechFallbackMessage = "Used on-device Apple Speech. \(reason)"
+                    guard let self, self.sessionIdentifier == identifier else { return }
+                    self.speechFallbackMessage = "Used on-device Apple Speech. \(reason)"
                 }
             }))
         contextIdentifier = UUID()
