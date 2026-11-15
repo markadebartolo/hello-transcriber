@@ -19,6 +19,7 @@ final class HelloController: ObservableObject {
     private var spellingObservationTask: Task<Void, Never>?
     private var personalizedTranscript = ""
     private var sessionSpellings: [HelloSpellingCorrection] = []
+    @Published private(set) var activity = HelloActivity()
     @Published private(set) var transcript = ""
     @Published private(set) var originalTranscript = ""
     @Published private(set) var resultMessage = "Hold Control + Option in a text field."
@@ -182,17 +183,32 @@ final class HelloController: ObservableObject {
 
     }
 
-    func requestAudioPermissions() {
+    var inputMonitoringNeeded: Bool { shortcutMonitor.tapUnavailable && !CGPreflightListenEventAccess() }
+
+    enum AudioPermission { case microphone, speech }
+
+    func requestAudioPermission(_ permission: AudioPermission) {
+        guard !isBusy else { return }
+        switch permission {
+        case .microphone where AVCaptureDevice.authorizationStatus(for: .audio) != .notDetermined:
+            openPrivacySettings("Microphone")
+            return
+        case .speech where SFSpeechRecognizer.authorizationStatus() != .notDetermined:
+            openPrivacySettings("SpeechRecognition")
+            return
+        default: break
+        }
+
         guard !isBusy else { return }
         isRequestingPermissions = true
         NSApp.activate(ignoringOtherApps: true)
         Task {
-            if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            if permission == .microphone {
                 _ = await BuddyPermissionBridge.request { completion in
                     AVCaptureDevice.requestAccess(for: .audio, completionHandler: completion)
                 }
             }
-            if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
+            if permission == .speech {
                 _ = await BuddyPermissionBridge.request { completion in
                     SFSpeechRecognizer.requestAuthorization { @Sendable status in
                         completion(status == .authorized)
@@ -204,12 +220,6 @@ final class HelloController: ObservableObject {
                 ? "Ready. Click a text field, then hold Control + Option."
                 : "Allow microphone and speech recognition in System Settings."
         }
-    }
-
-    func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        refreshShortcut()
     }
 
     func openPrivacySettings(_ pane: String) {
@@ -290,7 +300,10 @@ final class HelloController: ObservableObject {
         dictation.stopPushToTalkFromKeyboardShortcut()
     }
 
+    func resetActivity() { activity.reset() }
+
     private func processTranscript(_ text: String, identifier: UUID) {
+        activity.record(text)
         originalTranscript = text
         personalizedTranscript = sessionUsesForms ? text : HelloSpellingPolicy.apply(sessionSpellings, to: text)
         transcript = personalizedTranscript

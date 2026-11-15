@@ -41,6 +41,12 @@ interactions that invalidate a destination; Hello does not store keystrokes. It
 requests Screen Recording only when you enable the optional form feature. It never
 requests Camera, contacts, location or Automation access.
 
+The Dashboard counts words and completed nonempty dictations by local calendar
+day. Only numeric totals and their dates are saved to this Mac's Hello preferences.
+The dashboard shows the last seven days and removes older entries when recording
+new activity. **Reset activity** clears the saved totals. The activity feature
+does not keep transcript text or send usage data off this Mac.
+
 Hello writes no audio or full transcript history to disk and logs no transcript content.
 Latest text and destination snapshots are held in process memory during use and
 removed on Clear/cancel/quit or when replaced by a new session. Copy and the automatic no-destination fallback place text on

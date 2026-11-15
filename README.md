@@ -20,18 +20,27 @@ If there is no published release, there is no validated downloadable build yet.
 
 1. Download the ZIP and `SHA256SUMS`; run `shasum -a 256 -c SHA256SUMS` beside them.
 2. Extract it in Finder. Drag `Hello.app` into Applications and open it in Finder.
-3. Hello opens a visible setup window. Choose **Enable audio** and allow Microphone
-   and Speech Recognition. Enable Accessibility for insertion; Input Monitoring
-   may also be needed for the global shortcut.
+3. Hello opens the Dashboard. Follow the next action in **Permissions**, then
+   return to Hello after approving it in macOS. Microphone and Speech Recognition
+   enable dictation, Accessibility enables insertion, and Input Monitoring is
+   needed when the global shortcut cannot start without it.
 4. Click a supported text field, hold Control + Option while talking, then release.
    The floating recording indicator does not activate another application.
 
-Closing the window leaves Hello in the menu bar. Reopen Hello from Finder to bring
-the window back if the icon is hidden or hard to find.
+Closing the Dashboard leaves Hello in the menu bar. Choose **Open Dashboard**
+from the menu bar or reopen Hello from Finder.
 
 If a permission is denied, use Hello's settings buttons, grant access in System
 Settings → Privacy & Security, then retry the shortcut. macOS may request a relaunch
 for Input Monitoring. Do not disable Gatekeeper to install Hello.
+
+## Dictation activity
+
+The Dashboard shows words today, total words and completed dictations over the
+last seven days, and a daily word chart. Counts include completed nonempty
+transcriptions even when you copy them instead of inserting them. Activity starts
+after updating. Only daily counts are stored locally. Use **Reset activity** to
+clear them. See [privacy](PRIVACY.md).
 
 ## Behavior
 
@@ -70,7 +79,7 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
   stops on sleep, audio reconfiguration, permission loss, quit, or a 60-second limit.
 - The latest transcript stays in memory. **Copy** and automatic fallback change your clipboard; **Clear**
   and quitting remove Hello's transcript. Clearing Hello does not clear a clipboard
-  Hello copied to. There is no transcript history or analytics.
+  Hello copied to. Hello keeps no transcript history.
 - Optional **Preview punctuation cleanup** uses Apple's on-device Foundation Models
   when available. It disables automatic insertion. Hello copies the original transcript; review
   the punctuation suggestion before choosing **Copy**.

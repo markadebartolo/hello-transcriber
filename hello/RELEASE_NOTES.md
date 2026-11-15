@@ -20,7 +20,10 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   sign and symbol changes are rejected; the original remains available.
 - Session generations prevent quick-release and stale-callback races. Capture is
   cancelled on failure/sleep/reconfiguration and bounded to 60 seconds.
-- Visible setup window at launch and Finder reopen; actual spoken-“hello” waveform logo.
+- Dashboard with local word and dictation counts, a seven-day activity chart, and
+  a reset control. A single permission row guides setup one grant at a time.
+  The menu bar gives quick access to the dashboard and transcript.
+- Actual spoken-“hello” waveform logo.
 - Optional BYOK voice form filling (OpenAI, Anthropic or OpenRouter) maps a dictation to one or many empty fields
   without selecting them. Explicit cloud opt-in, window screenshot permission,
   separate personal Keychain API keys, original-window checks, exact transcript spans and
@@ -29,7 +32,7 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   and report their verified count. No Submit/Send is generated.
 - Standalone universal app, scoped MIT license with Clicky/Farza attribution,
   documented provenance, Swift 6 checks and macOS CI. No private Dorsal services,
-  analytics, embedded credentials or transcript history.
+  remote usage tracking, embedded credentials or transcript history.
 
 Requires macOS 14.2+. Optional cleanup needs macOS 26+ and an available Apple
 Intelligence model. Apple Speech requests on-device processing where supported;

@@ -7,10 +7,12 @@ observations in signed-smoke.json; see RELEASING.md. No checkbox is pre-passed.
 Required checks (the IDs are release-gate keys):
 
 - [ ] **identity:** Hello waveform icon, bundle `com.markdebartolo.hello`, expected
-  Developer ID/team and hardened runtime; visible setup window at launch, close
-  leaves app running, Finder reopen restores window; no effect on existing Dorsal grants.
+  Developer ID/team and hardened runtime; visible Dashboard at launch, close
+  leaves app running, menu Open Dashboard and Finder reopen restore window; no effect on existing Dorsal grants.
 - [ ] **permissions:** fresh Hello identity prompts once for Microphone and Speech;
-  deny/recover each through Settings. Accessibility/Input Monitoring denial is
+  deny/recover each through Settings. Check the permission row at the minimum
+  window width, use the next action, and confirm returning from Settings updates
+  the status. The screenshot permission belongs to the separate form feature. Accessibility/Input Monitoring denial is
   visible; Retry works after grants/relaunch. No Screen Recording prompt in normal mode; Camera is never requested.
 - [ ] **microphone:** actual spoken test in TextEdit; recording HUD does not take
   focus; first words survive; audio meter responds; release stops microphone.
@@ -69,7 +71,9 @@ Required checks (the IDs are release-gate keys):
   Inspect network request scope with test content only. No real private page data.
 - [ ] **lifecycle:** sleep/wake, audio input change, quit during recording, retry
   after wake. Check light/dark layout, cancel button/VoiceOver labels, and secondary
-  display if one is present. Record unavailable hardware scenarios as limitations.
+  display if one is present. Verify a completed dictation updates the Dashboard,
+  counts survive reopening, and Reset activity clears them. Blank/cancelled
+  sessions do not increment them. Record unavailable hardware as limitations.
 
 After notarization and private draft staging, test the exact downloaded/extracted
 artifact and record downloaded-smoke.json:

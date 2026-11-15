@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 
 @main
@@ -7,12 +8,33 @@ struct HelloApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ScrollView { HelloPanel(controller: appDelegate.controller) }
-                .frame(width: 420, height: min(720, (NSScreen.main?.visibleFrame.height ?? 900) - 120))
+            HelloMenuPanel(controller: appDelegate.controller, openDashboard: appDelegate.showDashboard)
         } label: {
             HelloMenuBarLabel(controller: appDelegate.controller)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+private struct HelloMenuPanel: View {
+    @ObservedObject var controller: HelloController
+    let openDashboard: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Hello", systemImage: "waveform").font(.headline)
+            Text(controller.statusText).font(.callout).foregroundStyle(.secondary)
+            if !controller.transcript.isEmpty && !controller.isBusy {
+                Text(controller.transcript).lineLimit(3)
+                Button("Copy transcript") { controller.copyTranscript() }
+            }
+            Divider()
+            Button("Open Dashboard", action: openDashboard)
+            Button("Quit Hello", action: controller.quit)
+        }
+        .padding(16)
+        .frame(width: 280, alignment: .leading)
+        .buttonStyle(HelloButtonStyle())
     }
 }
 
@@ -28,12 +50,12 @@ private struct HelloMenuBarLabel: View {
 @MainActor
 final class HelloAppDelegate: NSObject, NSApplicationDelegate {
     let controller = HelloController()
-    private var setupWindow: NSWindow?
+    private var dashboardWindow: NSWindow?
 
-    func applicationDidFinishLaunching(_ notification: Notification) { showSetupWindow() }
+    func applicationDidFinishLaunching(_ notification: Notification) { showDashboard() }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showSetupWindow()
+        showDashboard()
         return true
     }
 
@@ -42,28 +64,28 @@ final class HelloAppDelegate: NSObject, NSApplicationDelegate {
         controller.shortcutMonitor.stop()
     }
 
-    private func showSetupWindow() {
-        if setupWindow == nil {
+    func showDashboard() {
+        if dashboardWindow == nil {
             let availableHeight = NSScreen.main?.visibleFrame.height ?? 900
-            let height = min(720, max(400, availableHeight - 120))
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: height),
-                                  styleMask: [.titled, .closable, .miniaturizable],
+            let height = min(780, max(400, availableHeight - 100))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: height),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                   backing: .buffered, defer: false)
-            window.title = "Hello Transcriber"
+            window.title = "Hello Dashboard"
+            window.minSize = NSSize(width: 700, height: 420)
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView:
-                ScrollView { HelloPanel(controller: controller) }.frame(width: 420))
+                ScrollView { HelloPanel(controller: controller) })
             window.center()
-            setupWindow = window
+            dashboardWindow = window
         }
         NSApp.activate(ignoringOtherApps: true)
-        setupWindow?.makeKeyAndOrderFront(nil)
+        dashboardWindow?.makeKeyAndOrderFront(nil)
     }
 }
 
 private struct HelloPanel: View {
     @ObservedObject var controller: HelloController
-    @AppStorage("Hello.didReviewPermissions") private var didReviewPermissions = false
     @State private var apiKey = ""
     @State private var showsFormSettings = false
 
@@ -72,7 +94,7 @@ private struct HelloPanel: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("hello").font(.system(size: 34, weight: .semibold, design: .rounded))
-                    Text("A little less typing.").foregroundStyle(.secondary)
+                    Text("Dictation dashboard").foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image("HelloWaveform").resizable().scaledToFit()
@@ -100,36 +122,8 @@ private struct HelloPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
 
-            if !didReviewPermissions || !controller.microphoneReady || !controller.speechReady || !controller.accessibilityReady {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Make room for your voice").font(.headline)
-                    Text("Microphone captures your voice. Speech Recognition turns it into text. Accessibility enables the shortcut and inserts text into the field you started in.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Button(controller.microphoneReady && controller.speechReady ? "Audio ready ✓" : "Enable audio") {
-                            controller.requestAudioPermissions()
-                            didReviewPermissions = true
-                        }.disabled(controller.isBusy)
-                        Button(controller.accessibilityReady ? "Accessibility ready ✓" : "Enable Accessibility") {
-                            controller.requestAccessibility()
-                        }
-                    }
-                    HStack {
-                        Button("Microphone settings") { controller.openPrivacySettings("Microphone") }
-                        Button("Speech settings") { controller.openPrivacySettings("SpeechRecognition") }
-                    }.font(.caption)
-                }
-            }
-            if controller.shortcutMonitor.tapUnavailable {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("The global shortcut isn't available. Allow Hello in Accessibility and Input Monitoring, then retry.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Input Monitoring") { controller.openPrivacySettings("ListenEvent") }
-                        Button("Retry shortcut") { controller.refreshShortcut() }
-                    }
-                }
-            }
+            HelloPermissions(controller: controller)
+            HelloActivityDashboard(activity: controller.activity, reset: controller.resetActivity)
 
             if !controller.transcript.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
@@ -242,10 +236,151 @@ private struct HelloPanel: View {
             }
         }
         .padding(24)
-        .frame(width: 420)
+        .frame(maxWidth: 960)
+        .frame(maxWidth: .infinity)
         .buttonStyle(HelloButtonStyle())
         .onAppear { controller.refreshShortcut() }
         .onChange(of: controller.formProvider) { _, _ in apiKey = "" }
+    }
+}
+
+private struct HelloPermissions: View {
+    @ObservedObject var controller: HelloController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Permissions").font(.headline)
+                Spacer()
+                if let nextStep {
+                    Button(nextStep.title, action: nextStep.action).disabled(controller.isBusy)
+                } else {
+                    Label("Setup complete", systemImage: "checkmark.circle.fill")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            HStack(alignment: .top, spacing: 8) {
+                permission("Microphone", icon: "mic", detail: "Capture your voice",
+                           ready: controller.microphoneReady) {
+                    controller.requestAudioPermission(.microphone)
+                }
+                permission("Speech Recognition", icon: "text.bubble", detail: "Turn speech into text",
+                           ready: controller.speechReady) {
+                    controller.requestAudioPermission(.speech)
+                }
+                permission("Accessibility", icon: "accessibility", detail: "Insert into a text field",
+                           ready: controller.accessibilityReady) {
+                    controller.openPrivacySettings("Accessibility")
+                }
+                permission("Input Monitoring", icon: "keyboard", detail: "Listen for the shortcut",
+                           ready: !controller.inputMonitoringNeeded,
+                           readyLabel: controller.shortcutMonitor.tapUnavailable ? "Check shortcut" : "Shortcut available") {
+                    controller.openPrivacySettings("ListenEvent")
+                }
+            }
+            Text("Select the next step, approve it in macOS, then return here. Form filling has its own optional screenshot permission.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var nextStep: (title: String, action: () -> Void)? {
+        if !controller.microphoneReady {
+            return ("Set up microphone", { controller.requestAudioPermission(.microphone) })
+        }
+        if !controller.speechReady {
+            return ("Set up speech recognition", { controller.requestAudioPermission(.speech) })
+        }
+        if !controller.accessibilityReady {
+            return ("Set up Accessibility", { controller.openPrivacySettings("Accessibility") })
+        }
+        if controller.inputMonitoringNeeded {
+            return ("Open Input Monitoring", { controller.openPrivacySettings("ListenEvent") })
+        }
+        if controller.shortcutMonitor.tapUnavailable { return ("Retry shortcut", controller.refreshShortcut) }
+        return nil
+    }
+
+    private func permission(_ title: String, icon: String, detail: String, ready: Bool,
+                            readyLabel: String = "Allowed", action: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon).foregroundStyle(.blue).accessibilityHidden(true)
+            Text(title).font(.subheadline.weight(.semibold))
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+            if ready {
+                Text(readyLabel).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            } else {
+                Text("Needs setup").font(.caption).foregroundStyle(.secondary)
+                Button("Set up", action: action)
+                    .font(.caption).disabled(controller.isBusy)
+                    .accessibilityLabel("Set up \(title)")
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct HelloActivityDashboard: View {
+    let activity: HelloActivity
+    let reset: () -> Void
+    @State private var confirmsReset = false
+
+    var body: some View {
+        let days = activity.recentDays()
+        let sessions = days.reduce(0) { $0 + $1.sessions }
+        let words = days.reduce(0) { $0 + $1.words }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Dictation activity").font(.headline)
+                Spacer()
+                Text("Last 7 days").font(.callout).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                metric(days.last?.words ?? 0, label: "Words today")
+                metric(words, label: "Words in 7 days")
+                metric(sessions, label: "Dictations in 7 days")
+            }
+            if sessions == 0 {
+                Label("Finish a dictation to see your activity here.", systemImage: "chart.bar")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 95)
+            } else {
+                Chart(days) { day in
+                    BarMark(x: .value("Date", String(day.id.suffix(5))), y: .value("Words", day.words))
+                        .foregroundStyle(Color.blue.gradient)
+                        .cornerRadius(3)
+                        .accessibilityLabel(day.id)
+                        .accessibilityValue("\(day.words) words, \(day.sessions) dictations")
+                }
+                .chartYScale(domain: 0...max(1, days.map(\.words).max() ?? 0))
+                .chartYAxis { AxisMarks(position: .leading) }
+                .frame(height: 120)
+                .accessibilityLabel("Words by day")
+            }
+            HStack {
+                Text("Daily counts stay on this Mac.").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Reset activity", role: .destructive) { confirmsReset = true }
+                    .font(.caption).disabled(sessions == 0)
+            }
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
+        .confirmationDialog("Reset dictation activity?", isPresented: $confirmsReset, titleVisibility: .visible) {
+            Button("Reset activity", role: .destructive, action: reset)
+        }
+    }
+
+    private func metric(_ number: Int, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(number, format: .number).font(.title2.weight(.semibold)).monospacedDigit()
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+        .accessibilityElement(children: .combine)
     }
 }
 
