@@ -23,6 +23,9 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
 - Dashboard with local word and dictation counts, a seven-day activity chart, and
   a reset control. A single permission row guides setup one grant at a time.
   The menu bar gives quick access to the dashboard and transcript.
+- Overview, Dictation, Personal Spellings and Form Filling have separate tabs.
+- Sparkle offers signed updates through GitHub, with manual checks and optional
+  automatic checks. Update installation requires approval.
 - Actual spoken-“hello” waveform logo.
 - Optional BYOK voice form filling (OpenAI, Anthropic or OpenRouter) maps a dictation to one or many empty fields
   without selecting them. Explicit cloud opt-in, window screenshot permission,

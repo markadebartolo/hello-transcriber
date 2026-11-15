@@ -34,6 +34,18 @@ If a permission is denied, use Hello's settings buttons, grant access in System
 Settings → Privacy & Security, then retry the shortcut. macOS may request a relaunch
 for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
+## Dashboard and updates
+
+- **Overview** shows permissions, activity and the latest transcript.
+- **Dictation** controls where the transcript goes and how punctuation review works.
+- **Personal Spellings** manages corrections Hello can remember.
+- **Form Filling** guides provider setup, screenshot permission and opt-in.
+
+Choose **Check for Updates** in the dashboard or menu bar. You can also turn on
+automatic checks in the dashboard. Sparkle checks the signed feed on GitHub and
+asks before installing an available update. The feed becomes available with the
+first public release. Builds made before Sparkle was added need a one-time manual update.
+
 ## Dictation activity
 
 The Dashboard shows words today, total words and completed dictations over the

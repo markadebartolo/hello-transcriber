@@ -28,7 +28,7 @@ if [[ "$MODE" == prepare ]]; then
     ONLY_ACTIVE_ARCH=NO MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD"
   ditto "$OUT/Hello.xcarchive/Products/Applications/Hello.app" "$OUT/Hello.app"
   # License notices travel with the binary as well as the source distribution.
-  cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/NOTICES.md" "$OUT/Hello.app/Contents/Resources/"
+  cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/NOTICES.md" "$ROOT_DIR/third-party/Sparkle-LICENSE.txt" "$OUT/Hello.app/Contents/Resources/"
   codesign --force --sign "$HELLO_SIGNING_IDENTITY" --options runtime --timestamp \
     --entitlements "$ROOT_DIR/hello/Hello.entitlements" "$OUT/Hello.app"
   bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"

@@ -26,12 +26,21 @@ because the connected GitHub tool does not offer these operations.
    account by you. The script never extracts credentials.
 6. Run `bash hello/scripts/release.sh notarize "$HELLO_OUTPUT_DIRECTORY"`. Require
    Accepted, staple/validate, verify signature and Gatekeeper. Preserve the result
-   JSON and checksums. Failure means no distribution. The script deliberately
+   JSON and checksums. Use an increasing build number and a new release version.
+   Generate the Sparkle feed for this exact stapled ZIP. Obtain the Sparkle tools
+   from the matching official release and verify the download against GitHub's
+   SHA-256 digest. Set `HELLO_SPARKLE_BIN` to the verified distribution's `bin`
+   directory, then run:
+   `bash hello/scripts/sparkle-appcast.sh generate "$HELLO_OUTPUT_DIRECTORY" "$HELLO_OUTPUT_DIRECTORY/Hello.app"`.
+   It uses Keychain account `com.markdebartolo.hello` and verifies the public key
+   against the app, then verifies the feed signature and ZIP signature. Keep the
+   existing key for future releases. Back it up securely outside the repository.
+   Failure means no distribution. The script deliberately
    preserves the signed candidate/work for diagnosis rather than deleting it.
 7. Create an annotated `hello-v0.1.0` tag at the manifest's exact source commit and
    push only to Hello. Keep the new repository private during staging. Run
    `bash hello/scripts/publish.sh stage "$HELLO_OUTPUT_DIRECTORY"` to create a
-   private draft release, download the exact ZIP, compare bytes and reverify it.
+   draft release, download the exact ZIP and appcast, compare bytes and reverify them.
 8. Open `downloaded/Hello.app` through Finder (quit the prior copy first), repeat
    microphone/insertion/cancellation checks, and record `downloaded-smoke.json`.
    Record the exact artifact checksum. Never distribute unsigned CI output.
@@ -39,7 +48,11 @@ because the connected GitHub tool does not offer these operations.
    then run `bash hello/scripts/publish.sh publish "$HELLO_OUTPUT_DIRECTORY"`.
    The script checks the remote tag's resolved commit, evidence, signature,
    notarization ticket, Gatekeeper and a fresh download before publishing the draft.
-10. Verify public repository/release links and checksums. Report actual test scope,
+10. Verify public repository/release links and checksums. Check the public
+    `releases/latest/download/appcast.xml` resolves to the published signed feed.
+    From a prior Sparkle-enabled build, check, approve and install an update,
+    then verify the version, relaunch and retained settings. The first public
+    Sparkle build can confirm a working feed and an up-to-date result. Report actual test scope,
     limitations, notarization request/status and matching tag/source commit.
 
 ## Evidence schema

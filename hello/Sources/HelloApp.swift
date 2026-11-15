@@ -1,6 +1,7 @@
 import AppKit
 import Charts
 import SwiftUI
+import Sparkle
 
 @main
 struct HelloApp: App {
@@ -8,7 +9,7 @@ struct HelloApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            HelloMenuPanel(controller: appDelegate.controller, openDashboard: appDelegate.showDashboard)
+            HelloMenuPanel(controller: appDelegate.controller, openDashboard: appDelegate.showDashboard, updates: appDelegate.updates)
         } label: {
             HelloMenuBarLabel(controller: appDelegate.controller)
         }
@@ -19,6 +20,7 @@ struct HelloApp: App {
 private struct HelloMenuPanel: View {
     @ObservedObject var controller: HelloController
     let openDashboard: () -> Void
+    @ObservedObject var updates: HelloUpdates
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -30,6 +32,8 @@ private struct HelloMenuPanel: View {
             }
             Divider()
             Button("Open Dashboard", action: openDashboard)
+            Button("Check for Updates…", action: updates.check)
+                .disabled(!updates.canCheck || controller.isBusy)
             Button("Quit Hello", action: controller.quit)
         }
         .padding(16)
@@ -48,11 +52,41 @@ private struct HelloMenuBarLabel: View {
 }
 
 @MainActor
+final class HelloUpdates: ObservableObject {
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+
+    @Published private(set) var canCheck = false
+    @Published private(set) var automaticChecks = false
+
+    func start() {
+        updater.startUpdater()
+        updater.updater.publisher(for: \.canCheckForUpdates)
+            .assign(to: &$canCheck)
+        updater.updater.publisher(for: \.automaticallyChecksForUpdates)
+            .assign(to: &$automaticChecks)
+    }
+
+    func check() {
+        guard canCheck else { return }
+        updater.checkForUpdates(nil)
+    }
+
+    func setAutomaticChecks(_ enabled: Bool) {
+        updater.updater.automaticallyChecksForUpdates = enabled
+    }
+}
+
+@MainActor
 final class HelloAppDelegate: NSObject, NSApplicationDelegate {
     let controller = HelloController()
+    let updates = HelloUpdates()
     private var dashboardWindow: NSWindow?
 
-    func applicationDidFinishLaunching(_ notification: Notification) { showDashboard() }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        updates.start()
+        showDashboard()
+    }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showDashboard()
@@ -75,7 +109,7 @@ final class HelloAppDelegate: NSObject, NSApplicationDelegate {
             window.minSize = NSSize(width: 700, height: 420)
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView:
-                ScrollView { HelloPanel(controller: controller) })
+                HelloPanel(controller: controller, updates: updates))
             window.center()
             dashboardWindow = window
         }
@@ -87,160 +121,230 @@ final class HelloAppDelegate: NSObject, NSApplicationDelegate {
 private struct HelloPanel: View {
     @ObservedObject var controller: HelloController
     @State private var apiKey = ""
-    @State private var showsFormSettings = false
+    @ObservedObject var updates: HelloUpdates
+    @State private var section = Section.overview
+
+    private enum Section: String, CaseIterable {
+        case overview = "Overview"
+        case dictation = "Dictation"
+        case spellings = "Personal Spellings"
+        case forms = "Form Filling"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("hello").font(.system(size: 34, weight: .semibold, design: .rounded))
-                    Text("Dictation dashboard").foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("hello").font(.system(size: 30, weight: .semibold, design: .rounded))
+                    Spacer()
+                    Image("HelloWaveform").resizable().scaledToFit()
+                        .frame(width: 48, height: 32).foregroundStyle(.blue)
+                        .accessibilityHidden(true)
                 }
-                Spacer()
-                Image("HelloWaveform").resizable().scaledToFit()
-                    .frame(width: 54, height: 36).foregroundStyle(.blue)
-                    .accessibilityHidden(true)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Hold Control + Option. Speak. Release.", systemImage: "keyboard")
-                    .font(.system(size: 13, weight: .medium))
-                Text(controller.statusText).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !controller.insertionMessage.isEmpty {
-                    Text(controller.insertionMessage).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                Picker("Dashboard section", selection: $section) {
+                    ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                if controller.isBusy {
-                    ProgressView().controlSize(.small)
-                    if !controller.isRequestingPermissions {
-                        Button("Cancel", action: controller.cancel)
-                    }
-                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-
-            HelloPermissions(controller: controller)
-            HelloActivityDashboard(activity: controller.activity, reset: controller.resetActivity)
-
-            if !controller.transcript.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(controller.isBusy ? "LIVE TRANSCRIPT" : "YOUR WORDS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                    ScrollView {
-                        Text(controller.transcript).font(.body).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }.frame(maxHeight: 170)
-                    HStack {
-                        Button("Copy", action: { controller.copyTranscript() }).disabled(controller.isBusy)
-                        if controller.originalTranscript != controller.transcript {
-                            Button("Copy original", action: { controller.copyTranscript(true) })
-                        }
-                        Spacer()
-                        Button("Clear", action: controller.clearTranscript)
-                    }
-                }
-            }
-
-            if !controller.formMessage.isEmpty {
-                Text(controller.formMessage).font(.caption).foregroundStyle(.secondary)
-            }
-            if !controller.formPreview.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("FORM VALUES").font(.caption).foregroundStyle(.secondary)
-                    ForEach(controller.formPreview) { assignment in
-                        VStack(alignment: .leading, spacing: 4) {
-                            let field = controller.formFields.first { $0.id == assignment.fieldID }
-                            Text(field?.label.isEmpty == false ? field!.label : assignment.fieldID).font(.caption).bold()
-                            Text(assignment.text).textSelection(.enabled)
-                            Button("Copy value") { controller.copyFormValue(assignment.text) }.disabled(controller.isBusy)
-                        }
-                    }
-                }
-            }
-
+            .padding(20)
             Divider()
-            DisclosureGroup("Personal spellings") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Use spelling memory", isOn: $controller.spellingMemoryEnabled).disabled(controller.isBusy)
-                    Text("After Hello inserts text, correct a spelling in the same field within 10 seconds. Pause two seconds, then open Hello to approve a suggested spelling. Approved replacements match regardless of case and use your saved spelling in future normal dictation. They stay on this Mac. Form filling keeps the original recognition.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if let suggestion = controller.suggestedSpelling {
-                        Text("Remember ‘\(suggestion.heard)’ as ‘\(suggestion.spelling)’?")
-                        HStack {
-                            Button("Remember spelling", action: controller.rememberSuggestedSpelling)
-                            Button("Ignore", action: controller.ignoreSuggestedSpelling)
-                        }.disabled(controller.isBusy)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    switch section {
+                    case .overview: overview
+                    case .dictation: dictationSettings
+                    case .spellings: spellingSettings
+                    case .forms: formSettings
                     }
-                    ForEach(controller.spellingMemory.entries) { entry in
-                        HStack {
-                            Text("\(entry.heard) → \(entry.spelling)").textSelection(.enabled)
-                            Spacer()
-                            Button("Remove") { controller.spellingMemory.remove(entry) }.disabled(controller.isBusy)
-                        }
-                    }
-                    if !controller.spellingMemory.message.isEmpty {
-                        Text(controller.spellingMemory.message).font(.caption)
-                    }
-                    Button("Clear saved spellings", action: controller.clearSavedSpellings).disabled(controller.isBusy)
-                }.padding(.top, 8)
+                }
+                .padding(20)
+                .frame(maxWidth: 960)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-
-            DisclosureGroup("Form filling", isExpanded: $showsFormSettings) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Picker("AI provider", selection: $controller.formProvider) {
-                        ForEach(HelloAIProvider.allCases) { provider in
-                            Text(provider.displayName).tag(provider)
-                        }
-                    }.disabled(controller.isBusy)
-                    Text("Model: \(controller.formProvider.model)").font(.caption).foregroundStyle(.secondary)
-                    Text("When enabled, each dictation sends your transcript, a screenshot of the active window, and empty-field labels to \(controller.formProvider.recipientDescription). The screenshot may contain other private page content. API usage is billed to your account.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle("Send window to \(controller.formProvider.displayName) and fill empty fields", isOn: $controller.formMode)
-                        .disabled(controller.isBusy).helloPointer()
-                    Text("Speak one answer or several labeled answers. No field needs to be selected. Clear matches fill automatically; uncertain matches copy the original transcript to the clipboard. Existing values stay untouched. Screenshots are not saved by Hello. Switching apps, typing, or clicking cancels the destination.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    SecureField("\(controller.formProvider.displayName) API key", text: $apiKey)
-                        .textFieldStyle(.roundedBorder)
-                    HStack {
-                        Button("Save key") { controller.saveAPIKey(apiKey); apiKey = "" }
-                            .disabled(apiKey.isEmpty || controller.isBusy)
-                        Button("Check saved key") { controller.checkAPIKey() }.disabled(controller.isBusy)
-                        Button("Remove key") { controller.removeAPIKey() }.disabled(controller.isBusy)
-                    }
-                    if controller.hasAPIKey { Text("\(controller.formProvider.displayName) key is available in Keychain.").font(.caption) }
-                    if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
-                    Button("Allow form filling screenshots") { controller.requestScreenAccess() }.disabled(controller.isBusy)
-                    Text("Form filling uses a screenshot of the active window to identify text boxes. macOS calls this permission Screen Recording. Hello does not continuously record your screen or save screenshots. Ordinary dictation does not need this permission. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(.top, 8)
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert).disabled(controller.formMode || controller.isBusy).helloPointer()
-                Toggle("Preview punctuation cleanup", isOn: $controller.cleanPunctuation)
-                    .disabled(!OnDeviceModel.isAvailable || controller.formMode || controller.isBusy).helloPointer()
-                Text(OnDeviceModel.isAvailable
-                     ? "Cleanup is review-only and disables automatic insertion. Check the suggestion before copying; punctuation can change meaning."
-                     : "Optional cleanup needs Apple Intelligence on a supported Mac with macOS 26 or later.")
+            .id(section)
+            Divider()
+            HStack(spacing: 12) {
+                Text("Hello \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Apple Speech uses on-device recognition where supported; otherwise audio may be sent to Apple. Hello keeps only the latest transcript in memory. Password fields are excluded. When no field can be filled, Hello copies the original transcript to your clipboard.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            HStack {
-                Text("Hello · \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")")
-                    .font(.caption).foregroundStyle(.tertiary)
                 Spacer()
+                Toggle("Automatic update checks", isOn: Binding(
+                    get: { updates.automaticChecks }, set: updates.setAutomaticChecks))
+                    .font(.caption)
+                Button("Check for Updates…", action: updates.check)
+                    .disabled(!updates.canCheck || controller.isBusy)
                 Button("Quit Hello", action: controller.quit)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
         }
-        .padding(24)
-        .frame(maxWidth: 960)
-        .frame(maxWidth: .infinity)
         .buttonStyle(HelloButtonStyle())
         .onAppear { controller.refreshShortcut() }
         .onChange(of: controller.formProvider) { _, _ in apiKey = "" }
+        .onChange(of: section) { _, newSection in if newSection != .forms { apiKey = "" } }
+    }
+
+    @ViewBuilder private var overview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Hold Control + Option. Speak. Release.", systemImage: "keyboard")
+                .font(.system(size: 13, weight: .medium))
+            Text(controller.statusText).font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !controller.insertionMessage.isEmpty {
+                Text(controller.insertionMessage).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if controller.isBusy {
+                ProgressView().controlSize(.small)
+                if !controller.isRequestingPermissions {
+                    Button("Cancel", action: controller.cancel)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+
+        HelloPermissions(controller: controller)
+        HelloActivityDashboard(activity: controller.activity, reset: controller.resetActivity)
+
+        if !controller.transcript.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(controller.isBusy ? "LIVE TRANSCRIPT" : "YOUR WORDS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                ScrollView {
+                    Text(controller.transcript).font(.body).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxHeight: 170)
+                HStack {
+                    Button("Copy", action: { controller.copyTranscript() }).disabled(controller.isBusy)
+                    if controller.originalTranscript != controller.transcript {
+                        Button("Copy original", action: { controller.copyTranscript(true) })
+                    }
+                    Spacer()
+                    Button("Clear", action: controller.clearTranscript)
+                }
+            }
+        }
+
+        if !controller.formMessage.isEmpty {
+            Text(controller.formMessage).font(.caption).foregroundStyle(.secondary)
+        }
+        if !controller.formPreview.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("FORM VALUES").font(.caption).foregroundStyle(.secondary)
+                ForEach(controller.formPreview) { assignment in
+                    VStack(alignment: .leading, spacing: 4) {
+                        let field = controller.formFields.first { $0.id == assignment.fieldID }
+                        Text(field?.label.isEmpty == false ? field!.label : assignment.fieldID).font(.caption).bold()
+                        Text(assignment.text).textSelection(.enabled)
+                        Button("Copy value") { controller.copyFormValue(assignment.text) }.disabled(controller.isBusy)
+                    }
+                }
+            }
+        }
+    }
+
+    private var dictationSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeading("Dictation", detail: "Choose what Hello does with your words after you release the shortcut.")
+            if controller.formMode {
+                Label("Form Filling is on. Turn it off to use these dictation settings.", systemImage: "info.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("Open Form Filling") { section = .forms }
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert)
+                    .disabled(controller.formMode || controller.isBusy).helloPointer()
+                Text("Hello inserts into the field you started in when it can verify the selection. If it can’t safely insert, it copies your words or asks you to check the field.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Preview punctuation cleanup", isOn: $controller.cleanPunctuation)
+                    .disabled(!OnDeviceModel.isAvailable || controller.formMode || controller.isBusy).helloPointer()
+                Text(OnDeviceModel.isAvailable
+                     ? "Review suggested punctuation in Hello, then copy the version you want. While this is on, Hello pauses automatic insertion."
+                     : "Suggested punctuation requires Apple Intelligence on a supported Mac with macOS 26 or later.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Divider()
+            Text("Speech privacy").font(.headline)
+            Text("Apple Speech runs on your Mac where supported. Otherwise Apple may process the audio. Hello keeps the latest transcript in memory and skips password fields.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    private var spellingSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeading("Personal Spellings", detail: "Teach Hello how to spell names and words you use often.")
+            Toggle("Use spelling memory", isOn: $controller.spellingMemoryEnabled).disabled(controller.isBusy)
+            Text("Correct a spelling within 10 seconds of insertion. Pause for two seconds, then return here to review the suggestion. Approved spellings stay on this Mac and apply to future dictation.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let suggestion = controller.suggestedSpelling {
+                Text("Remember ‘\(suggestion.heard)’ as ‘\(suggestion.spelling)’?")
+                HStack {
+                    Button("Remember spelling", action: controller.rememberSuggestedSpelling)
+                    Button("Ignore", action: controller.ignoreSuggestedSpelling)
+                }.disabled(controller.isBusy)
+            }
+            ForEach(controller.spellingMemory.entries) { entry in
+                HStack {
+                    Text("\(entry.heard) → \(entry.spelling)").textSelection(.enabled)
+                    Spacer()
+                    Button("Remove") { controller.spellingMemory.remove(entry) }.disabled(controller.isBusy)
+                }
+            }
+            if !controller.spellingMemory.message.isEmpty {
+                Text(controller.spellingMemory.message).font(.caption)
+            }
+            if controller.spellingMemory.entries.isEmpty {
+                Text("No saved spellings yet.").font(.callout).foregroundStyle(.secondary)
+            } else {
+                Button("Clear saved spellings", action: controller.clearSavedSpellings).disabled(controller.isBusy)
+            }
+        }
+    }
+
+    private var formSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeading("Form Filling", detail: "Dictate answers into empty fields. This optional feature uses your AI provider and can fill several fields at once.")
+            Text("Connect a provider").font(.headline)
+            Picker("AI provider", selection: $controller.formProvider) {
+                ForEach(HelloAIProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider)
+                }
+            }.disabled(controller.isBusy)
+            Text("Model: \(controller.formProvider.model)").font(.caption).foregroundStyle(.secondary)
+            SecureField("\(controller.formProvider.displayName) API key", text: $apiKey)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Button("Save key") { controller.saveAPIKey(apiKey); apiKey = "" }
+                    .disabled(apiKey.isEmpty || controller.isBusy)
+                Button("Check saved key") { controller.checkAPIKey() }.disabled(controller.isBusy)
+                Button("Remove key") { controller.removeAPIKey() }.disabled(controller.isBusy)
+            }
+            if controller.hasAPIKey { Text("\(controller.formProvider.displayName) key is available in Keychain.").font(.caption) }
+            if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
+            Divider()
+            Text("Allow screenshots").font(.headline)
+            Button("Allow form filling screenshots") { controller.requestScreenAccess() }.disabled(controller.isBusy)
+            Text("Form filling uses a screenshot of the active window to identify text boxes. macOS calls this permission Screen Recording. Hello does not continuously record your screen or save screenshots. Ordinary dictation does not need this permission. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
+                .font(.caption).foregroundStyle(.secondary)
+            Divider()
+            Text("Turn on Form Filling").font(.headline)
+            Text("When enabled, each dictation sends your transcript, a screenshot of the active window, and empty-field labels to \(controller.formProvider.recipientDescription). The screenshot may contain other private page content. API usage is billed to your account.")
+                .font(.caption).foregroundStyle(.secondary)
+            Toggle("Send window to \(controller.formProvider.displayName) and fill empty fields", isOn: $controller.formMode)
+                .disabled(controller.isBusy).helloPointer()
+            Text("Speak one answer or several labeled answers. No field needs to be selected. Clear matches fill automatically; uncertain matches copy the original transcript to the clipboard. Existing values stay untouched. Screenshots are not saved by Hello. Switching apps, typing, or clicking cancels the destination.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func sectionHeading(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.title2.weight(.semibold)).accessibilityAddTraits(.isHeader)
+            Text(detail).font(.callout).foregroundStyle(.secondary)
+        }
     }
 }
 

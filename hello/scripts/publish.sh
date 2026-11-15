@@ -40,14 +40,16 @@ PYCODE
 xcrun stapler validate "$CHECK/Hello.app"
 spctl --assess --type execute --verbose=2 "$CHECK/Hello.app"
 python3 -I "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" signed
+# Verify both Sparkle signatures and the feed's exact version, ZIP and download URL.
+bash "$ROOT_DIR/hello/scripts/sparkle-appcast.sh" verify "$OUT" "$CHECK/Hello.app"
 if [[ "$MODE" == stage ]]; then
-  [[ "$(gh repo view "$REPO" --json isPrivate --jq .isPrivate)" == true ]] || { echo 'Staging requires a private repository.' >&2; exit 1; }
   gh release create "$TAG" --repo "$REPO" --draft --verify-tag --title "Hello $VERSION" \
     --notes-file "$OUT/RELEASE_NOTES.md" "$OUT/$ARTIFACT" "$OUT/SHA256SUMS" \
-    "$OUT/release-manifest.json" "$OUT/notarization.json"
+    "$OUT/release-manifest.json" "$OUT/notarization.json" "$OUT/appcast.xml"
   mkdir "$OUT/downloaded"
-  gh release download "$TAG" --repo "$REPO" --pattern "$ARTIFACT" --dir "$OUT/downloaded"
+  gh release download "$TAG" --repo "$REPO" --pattern "$ARTIFACT" --pattern appcast.xml --dir "$OUT/downloaded"
   cmp "$OUT/$ARTIFACT" "$OUT/downloaded/$ARTIFACT"
+  cmp "$OUT/appcast.xml" "$OUT/downloaded/appcast.xml"
   ditto -x -k "$OUT/downloaded/$ARTIFACT" "$OUT/downloaded"
   bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/downloaded/Hello.app" "$TEAM"
   xcrun stapler validate "$OUT/downloaded/Hello.app"
@@ -57,11 +59,12 @@ else
   python3 -I "$ROOT_DIR/hello/scripts/verify-smoke.py" "$OUT" downloaded
   [[ "$(gh release view "$TAG" --repo "$REPO" --json isDraft --jq .isDraft)" == true ]]
   # Re-download to ensure staged assets have not changed since smoke testing.
-  gh release download "$TAG" --repo "$REPO" --pattern "$ARTIFACT" --dir "$CHECK"
+  gh release download "$TAG" --repo "$REPO" --pattern "$ARTIFACT" --pattern appcast.xml --dir "$CHECK"
   cmp "$OUT/$ARTIFACT" "$CHECK/$ARTIFACT"
+  cmp "$OUT/appcast.xml" "$CHECK/appcast.xml"
   # Visibility change is deliberately separate, scoped to this NEW repository.
   [[ "$(gh repo view "$REPO" --json isPrivate --jq .isPrivate)" == false ]] || {
     echo "After review, make only $REPO public, then rerun publish." >&2; exit 1;
   }
-  gh release edit "$TAG" --repo "$REPO" --draft=false
+  gh release edit "$TAG" --repo "$REPO" --draft=false --latest
 fi

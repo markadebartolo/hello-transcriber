@@ -88,3 +88,15 @@ artifact and record downloaded-smoke.json:
 The automated regressions use injected audio/providers and cannot substitute for
 these microphone, permissions and Accessibility observations. Minimum-OS and Intel
 compilation are not claims of physical runtime testing on those systems.
+
+### Dashboard and Sparkle
+
+- Open Dictation, Personal Spellings and Form Filling from the top tabs at normal
+  and minimum window size. Check that the dashboard retains transcript controls,
+  settings persist across tab switches, and form opt-in remains explicit.
+- Check for Updates opens Sparkle. Before the public feed is available, verify it
+  reports the fetch failure without crashing. After publication, check up-to-date
+  or update available against the signed feed. For a subsequent release, install
+  from an older Sparkle-enabled build and verify relaunch and preserved settings.
+- Verify the appcast and archive match the release manifest and that their
+  signatures validate. Change a temporary copy and confirm signature rejection.

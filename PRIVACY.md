@@ -137,3 +137,12 @@ because that could overwrite a concurrent edit. Applications can autosave or rea
 to a value change even though Hello never activates Submit/Send. Review the result.
 
 Revoke access in System Settings → Privacy & Security. Delete Hello.app to uninstall.
+
+
+## Software updates
+
+Sparkle contacts the Hello GitHub release feed when you check for updates or opt
+into automatic checks. GitHub receives ordinary HTTPS request information such as
+your IP address. Hello disables Sparkle system profiling. The update check sends
+no transcripts, screenshots, API keys or dictation activity. Updates require a
+signed feed and signed archive and are installed only after approval.
