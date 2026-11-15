@@ -11,9 +11,9 @@ fallback. It requires on-device recognition for that path. If no local
 recognizer is available, the waveform can still show while you record. Apple
 Speech authorization is optional and never enables remote Apple processing.
 
-Enabling **OpenAI transcription** in Dictation sends the completed recording in
-memory to the OpenAI audio transcription endpoint over HTTPS. This uses your
-OpenAI Keychain key and can incur charges. Only the microphone recording is
+With an OpenAI key saved in Keychain, releasing the dictation shortcut sends the
+completed recording from memory to the OpenAI audio transcription endpoint over
+HTTPS. This uses your key and can incur charges. Only the microphone recording is
 sent for transcription. The destination draft and screenshots are excluded.
 Cancel before release to discard the recording without submitting it. After
 release, cancelling stops local processing but cannot recall data already sent.
@@ -136,7 +136,8 @@ saved to preferences. Use **Remove key** in Hello to delete it; deleting the app
 alone does not remove a Keychain entry. The secure entry field clears after saving or changing provider. The saved OpenAI
 key namespace is preserved across this upgrade; no re-entry is needed. The selected
 provider name is a local preference. No maintainer key ships with Hello.
-No API key is needed for normal dictation or local punctuation cleanup.
+Normal dictation requires an OpenAI key. Local punctuation cleanup uses the
+on-device Foundation Models framework without a key.
 
 Form mode sets an empty field's AX value without selecting it, rather than changing
 focus or synthesizing keys. Multi-field writes are not atomic. Hello stops on any

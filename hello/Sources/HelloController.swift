@@ -53,9 +53,6 @@ final class HelloController: ObservableObject {
     private var formCaptureError: String?
     private var contextIdentifier = UUID()
     private var sessionUsesForms = false
-    @Published var usesOpenAITranscription = UserDefaults.standard.bool(forKey: "Hello.openAITranscription") {
-        didSet { UserDefaults.standard.set(usesOpenAITranscription, forKey: "Hello.openAITranscription") }
-    }
     @Published private(set) var speechKeyStatus = ""
     @Published private(set) var speechFallbackMessage = ""
     @Published private var provisionalTranscript = ""
@@ -94,7 +91,6 @@ final class HelloController: ObservableObject {
         if isProcessingTranscript {
             return sessionUsesForms ? "Matching your words to the form…" : cleanPunctuation ? "Tidying punctuation…" : "Inserting…"
         }
-        if !usesOpenAITranscription { return "Enable OpenAI transcription in Dictation to get started." }
         return dictation.lastErrorMessage ?? resultMessage
     }
 
@@ -113,7 +109,7 @@ final class HelloController: ObservableObject {
         spellingMemory.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
         dictation.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
         dictation.$lastErrorMessage.sink { [weak self] error in
-            guard error != nil, let self, self.usesOpenAITranscription else { return }
+            guard error != nil, let self else { return }
             self.announceResult("Transcription failed")
         }.store(in: &subscriptions)
         shortcutMonitor.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
@@ -174,7 +170,6 @@ final class HelloController: ObservableObject {
     func removeSpeechAPIKey() {
         guard !isBusy else { return }
         if HelloAPIKey.remove(for: .openAI) {
-            usesOpenAITranscription = false
             speechKeyStatus = "Key removed."
             if formProvider == .openAI {
                 hasAPIKey = false
@@ -207,7 +202,6 @@ final class HelloController: ObservableObject {
             hasAPIKey = false
             keyMessage = "Key removed."
             if formProvider == .openAI {
-                usesOpenAITranscription = false
                 speechKeyStatus = "Key removed."
             }
         } else {
@@ -285,10 +279,6 @@ final class HelloController: ObservableObject {
     private func startRecording() {
         guard !isBusy else { return }
         stopSpellingObservation()
-        guard usesOpenAITranscription else {
-            resultMessage = "Enable OpenAI transcription in Dictation to get started."
-            return
-        }
         guard microphoneReady else {
             resultMessage = "Open Hello and allow microphone access."
             return

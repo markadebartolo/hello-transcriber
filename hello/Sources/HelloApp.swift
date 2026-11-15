@@ -259,7 +259,7 @@ private struct HelloPanel: View {
             sectionHeading("Dictation", detail: "Choose what Hello does with your words after you release the shortcut.")
             VStack(alignment: .leading, spacing: 8) {
                 Text("OpenAI transcription").font(.headline)
-                Text("OpenAI receives the recording when you release the keys and returns the final text. Usage is billed to your OpenAI account.")
+                Text("Hello automatically uses your saved OpenAI key to transcribe the recording when you release the keys. OpenAI bills usage to your account.")
                     .font(.callout).foregroundStyle(.secondary)
                 SecureField("OpenAI API key", text: $speechAPIKey).textFieldStyle(.roundedBorder)
                 HStack {
@@ -271,8 +271,6 @@ private struct HelloPanel: View {
                 if !controller.speechKeyStatus.isEmpty {
                     Text(controller.speechKeyStatus).font(.caption)
                 }
-                Toggle("Enable OpenAI transcription", isOn: $controller.usesOpenAITranscription)
-                    .disabled(controller.isBusy)
                 Text("You can reuse the OpenAI key saved for Form Filling.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -357,6 +355,10 @@ private struct HelloPanel: View {
                 }
             }.disabled(controller.isBusy)
             Text("Model: \(controller.formProvider.model)").font(.caption).foregroundStyle(.secondary)
+            if controller.formProvider == .openAI {
+                Text("Hello also uses this OpenAI key to transcribe your recordings when you release the dictation shortcut.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             SecureField("\(controller.formProvider.displayName) API key", text: $apiKey)
                 .textFieldStyle(.roundedBorder)
             HStack {

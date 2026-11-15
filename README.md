@@ -108,8 +108,8 @@ clear them. See [privacy](PRIVACY.md).
 ## Set up transcription
 
 Open **Dictation** and add your OpenAI API key or reuse the OpenAI key saved for
-Form Filling. Enable **OpenAI transcription** to authorize sending recordings
-to OpenAI. Use an inference key with access to the audio transcription endpoint.
+Form Filling. Hello automatically uses the saved key for transcription. Use
+an inference key with access to the audio transcription endpoint.
 If you also use OpenAI for forms, allow the Responses endpoint.
 
 Hello buffers audio in memory while you hold the shortcut and sends it to
@@ -189,7 +189,7 @@ and transcript:
 
 Use an ordinary inference key, never an administration key. For OpenAI, use a
 restricted key with access to the Responses endpoint for forms. Allow the audio
-transcription endpoint if you also use OpenAI transcription. API usage
+transcription endpoint for dictation. API usage
 requires that provider's account, model access, and available usage/billing.
 OpenRouter forwards requests to a routed model provider; Hello requires schema
 support and requests `data_collection: deny`. This is not a zero-retention promise.

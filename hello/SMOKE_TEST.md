@@ -108,8 +108,8 @@ compilation are not claims of physical runtime testing on those systems.
 
 ### OpenAI transcription and successive dictation
 
-- With a disposable test recording and an authorized OpenAI key, select OpenAI
-  under Dictation. Confirm the waveform while holding, a punctuated transcript
+- With an authorized OpenAI key already saved, dictate a disposable test sentence
+  using the shortcut. Confirm the waveform while holding, a punctuated transcript
   after release, and no Apple Speech permission requirement in this mode.
   With local Apple Speech permission, confirm the live preview appears while
   held and the OpenAI result wins on success. With an invalid test key, confirm

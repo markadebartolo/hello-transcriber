@@ -10,7 +10,8 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   access on the Form Filling tab.
 - Successive ChatGPT dictations get spaces and conservative terminal punctuation
   at the end of the draft. Existing text is preserved.
-- OpenAI transcribes and punctuates dictation after release using your API key.
+- OpenAI automatically transcribes and punctuates dictation after release using
+  your saved API key.
   On-device Apple Speech shows live provisional words and can provide a
   completed fallback if OpenAI fails. Hello reports the reason for falling back.
 - Hold Control + Option to speak and release to transcribe.
