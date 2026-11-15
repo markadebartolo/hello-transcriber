@@ -6,11 +6,10 @@ original supported text field or copies the transcript to your clipboard. Option
 form filling can map a single dictation to one or several empty fields without
 selecting them first.
 
-**Notarized release candidate:** Apple accepted version 0.1.1, build 28 on
-November 14, 2026. The signature, stapled ticket, and Gatekeeper checks passed,
-as did the local universal build and regression suite. The maintainer confirmed
-live dictation and the punctuation and formatting fix on this build. See
-[validation](VALIDATION.md) for the checks still pending before publication.
+**Notarized release candidate:** Apple accepted version 0.1.2, build 29 on
+November 14, 2026. The signature, stapled ticket, Gatekeeper, and macOS CI checks
+passed. The microphone permission recovery fix was verified on the signed app.
+See [validation](VALIDATION.md) for the checks still pending before publication.
 
 ## Install
 
