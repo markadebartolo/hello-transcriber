@@ -23,37 +23,48 @@ final class AppleSpeechTranscriptionProvider: BuddyTranscriptionProvider {
     let isConfigured = true
     let unavailableExplanation: String? = nil
 
+    private let requireOnDevice: Bool
+
+    nonisolated init(requireOnDevice: Bool = false) {
+        self.requireOnDevice = requireOnDevice
+    }
+
     func startStreamingSession(
         keyterms: [String],
         onTranscriptUpdate: @escaping @Sendable (String) -> Void,
         onFinalTranscriptReady: @escaping @Sendable (String) -> Void,
         onError: @escaping @Sendable (Error) -> Void
     ) async throws -> any BuddyStreamingTranscriptionSession {
-        guard let speechRecognizer = Self.makeBestAvailableSpeechRecognizer(), speechRecognizer.isAvailable else {
+        guard let speechRecognizer = Self.makeBestAvailableSpeechRecognizer(requireOnDevice: requireOnDevice),
+              speechRecognizer.isAvailable else {
             throw AppleSpeechTranscriptionProviderError(message: "dictation is not available on this mac.")
         }
 
         return try AppleSpeechTranscriptionSession(
             speechRecognizer: speechRecognizer,
+            requiresOnDeviceRecognition: requireOnDevice || speechRecognizer.supportsOnDeviceRecognition,
             onTranscriptUpdate: onTranscriptUpdate,
             onFinalTranscriptReady: onFinalTranscriptReady,
             onError: onError
         )
     }
 
-    private static func makeBestAvailableSpeechRecognizer() -> SFSpeechRecognizer? {
+    private static func makeBestAvailableSpeechRecognizer(requireOnDevice: Bool) -> SFSpeechRecognizer? {
         let preferredLocales = [
             Locale.autoupdatingCurrent,
             Locale(identifier: "en-US")
         ]
 
         for preferredLocale in preferredLocales {
-            if let speechRecognizer = SFSpeechRecognizer(locale: preferredLocale) {
+            if let speechRecognizer = SFSpeechRecognizer(locale: preferredLocale),
+               !requireOnDevice || (speechRecognizer.supportsOnDeviceRecognition && speechRecognizer.isAvailable) {
                 return speechRecognizer
             }
         }
 
-        return SFSpeechRecognizer()
+        guard let defaultRecognizer = SFSpeechRecognizer(),
+              !requireOnDevice || defaultRecognizer.supportsOnDeviceRecognition else { return nil }
+        return defaultRecognizer
     }
 }
 
@@ -83,6 +94,7 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
 
     init(
         speechRecognizer: SFSpeechRecognizer,
+        requiresOnDeviceRecognition: Bool,
         onTranscriptUpdate: @escaping @Sendable (String) -> Void,
         onFinalTranscriptReady: @escaping @Sendable (String) -> Void,
         onError: @escaping @Sendable (Error) -> Void
@@ -98,9 +110,7 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
         recognitionRequest.taskHint = .dictation
         recognitionRequest.addsPunctuation = true
 
-        if speechRecognizer.supportsOnDeviceRecognition {
-            recognitionRequest.requiresOnDeviceRecognition = true
-        }
+        recognitionRequest.requiresOnDeviceRecognition = requiresOnDeviceRecognition
 
         // Speech defaults to the main operation queue. Keep provisional-word
         // delivery independent of UI rendering; Buddy performs the actor hop.

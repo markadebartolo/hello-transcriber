@@ -1,16 +1,16 @@
 # Hello Transcriber
 
 A small, standalone macOS menu bar app for push-to-talk dictation. Hold **Control +
-Option**, speak, and release. Hello uses Apple Speech, then inserts into the
+Option**, speak, and release. Hello uses your OpenAI key for final transcription and can show live Apple Speech previews. It inserts into the
 original supported text field or copies the transcript to your clipboard. Optional voice
 form filling can map a single dictation to one or several empty fields without
 selecting them first.
 
-**Notarized release candidate:** Apple accepted version 0.1.0, build 18 on
-November 14, 2026. Its ticket is stapled, its signature verifies, and Gatekeeper
-accepts it as Notarized Developer ID. Local checks and macOS CI passed. A public
-release still requires the remaining signed-device functionality tests and
-verification of the exact downloaded artifact. See [validation](VALIDATION.md).
+**Notarized release candidate:** Apple accepted version 0.1.1, build 28 on
+November 14, 2026. The signature, stapled ticket, and Gatekeeper checks passed,
+as did the local universal build and regression suite. The maintainer confirmed
+live dictation and the punctuation and formatting fix on this build. See
+[validation](VALIDATION.md) for the checks still pending before publication.
 
 ## Install
 
@@ -37,7 +37,7 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 ## Dashboard and updates
 
 - **Overview** shows permissions, activity and the latest transcript.
-- **Dictation** controls where the transcript goes and how punctuation review works.
+- **Dictation** connects your OpenAI key and explains live preview, fallback, insertion, and punctuation review.
 - **Personal Spellings** manages corrections Hello can remember.
 - **Form Filling** guides provider setup, screenshot permission and opt-in.
 
@@ -84,7 +84,11 @@ clear them. See [privacy](PRIVACY.md).
   waits for the app's accessibility value to update. If a write was accepted but
   cannot be verified, it says **Check text field** and retains the transcript in
   Hello for manual Copy, without an automatic duplicate paste or clipboard change.
-- No Return, Send or keyboard paste is generated. If insertion is unavailable,
+- Hello automatically inserts in normal dictation. In the ChatGPT desktop app,
+  it invokes the original app’s standard Paste menu command after verifying
+  focus and selection. Hello restores prior clipboard contents where possible
+  and does not overwrite a newer copy. Hello never presses Return or Send.
+  If insertion is unavailable,
   Hello replaces the clipboard with the original transcript and shows a brief
   nonactivating **Copied to clipboard.** indicator. Cancel/Clear do not change it.
 - **Escape** or **Cancel** discards a recording/result in progress. Capture also
@@ -98,9 +102,25 @@ clear them. See [privacy](PRIVACY.md).
   Names/case, words, numbers, signs and protected symbols must match, or Hello keeps
   the original. Punctuation can still change meaning. **Copy original** is available
   when a suggestion differs. A timeout keeps the original available.
-- Apple Speech requests on-device recognition when the recognizer supports it;
-  otherwise Apple may process audio remotely. This is not an offline-only app.
-  See [privacy](PRIVACY.md) for scope and limitations.
+- Apple Speech preview and fallback run on-device when supported. OpenAI
+  processes final dictation audio remotely. See [privacy](PRIVACY.md).
+
+## Set up transcription
+
+Open **Dictation** and add your OpenAI API key or reuse the OpenAI key saved for
+Form Filling. Hello automatically uses the saved key for transcription. Use
+an inference key with access to the audio transcription endpoint.
+If you also use OpenAI for forms, allow the Responses endpoint.
+
+Hello buffers audio in memory while you hold the shortcut and sends it to
+OpenAI’s [transcription API](https://developers.openai.com/api/docs/guides/speech-to-text)
+on release. This version uses `gpt-transcribe` for final dictation. Apple Speech provides an
+optional live preview on this Mac when permission and a local recognizer are
+available. If OpenAI reports an error, Hello can insert the completed on-device
+Apple result and shows the reason for falling back. If no local result is
+available, Hello shows the error and leaves the draft intact. OpenAI requires
+network access and bills your account. No existing draft text or screenshot is
+included in transcription. Hello joins ChatGPT draft chunks locally.
 
 ## Personal spellings (optional)
 
@@ -116,9 +136,9 @@ Clear/cancel, or quit. They are never learned without approval.
 Approved whole-word/phrase replacements match without regard to case and use the
 exact spelling you saved. They apply to future normal dictation and its automatic
 clipboard fallback, before optional punctuation cleanup. **Copy original** always
-provides Apple's raw recognition. Live captions show that raw recognition, so
+provides the speech engine’s original transcript. Apple Speech live captions show its raw recognition, so
 saved-spelling changes appear in the completed transcript. This is a local
-replacement dictionary, not training an AI model. No API key is required.
+replacement dictionary and uses no additional API calls.
 
 You can remove individual entries, **Clear saved spellings**, or disable spelling
 memory to stop both observation and replacement. At most 100 approved pairs are
@@ -136,9 +156,9 @@ permission **Screen Recording**; Hello uses it to capture the active window so t
 model can identify text boxes. Hello does not continuously record the screen or
 save screenshots. Then turn on **Send window to [provider]
 and fill empty fields**. Switching providers turns this opt-in off again. This switch defaults off each launch.
-Normal dictation and local cleanup do not require an API key or screen access.
-With Form filling off, ordinary dictation does not query screen permission or
-read an API key. Changing the form provider or removing a key while idle preserves
+Dictation requires an OpenAI API key. Screen access is separate and optional for forms.
+With Form Filling off, dictation does not query screen permission or use a
+form provider. Changing the form provider or removing a key while idle preserves
 the existing normal transcript.
 
 Open a form, leave its fields empty, and hold Control + Option. For example:
@@ -152,12 +172,12 @@ It never presses Enter, Send or Submit. Websites may autosave when a value chang
 Ambiguous mappings copy the original transcript automatically and show per-field
 suggestions with **Copy value**. Existing values
 are never replaced by form mode. Field labels in speech are routing cues; value
-spans preserve spelling, numbers and punctuation as Apple Speech transcribed them.
+spans preserve spelling, numbers and punctuation as the selected engine transcribed them.
 This mode does not apply punctuation cleanup. It cannot recover a transcription
 mistake or guarantee a model's interpretation of intent; always review filled forms.
 
 Each user brings their own key. The maintainer's key is never in the source or app.
-Normal transcription and local cleanup do not require any external provider key.
+Dictation uses the saved OpenAI key. Local punctuation cleanup runs on-device.
 The selected service receives the active-window screenshot, field labels/bounds,
 and transcript:
 
@@ -167,8 +187,12 @@ and transcript:
 | Anthropic | Messages API · `claude-sonnet-4-5` |
 | OpenRouter | Responses API · `openai/gpt-4.1-mini` |
 
+Choose the service under **Form Filling** to use its listed model. Hello
+currently has no separate model picker for dictation or form filling.
+
 Use an ordinary inference key, never an administration key. For OpenAI, use a
-restricted key with **Responses → Write** and other categories **None**. API usage
+restricted key with access to the Responses endpoint for forms. Allow the audio
+transcription endpoint for dictation. API usage
 requires that provider's account, model access, and available usage/billing.
 OpenRouter forwards requests to a routed model provider; Hello requires schema
 support and requests `data_collection: deny`. This is not a zero-retention promise.
@@ -194,9 +218,9 @@ model. Availability is checked at runtime. The minimum OS is a deployment target
 not a claim of microphone testing on every OS/hardware combination.
 
 Use Xcode **16+** with Swift 6 for the app and tests. Use Xcode 26+ to compile in
-Foundation Models support; older SDKs omit cleanup. No package downloads, Dorsal
-checkout, or private services are required. An API key is needed only for optional
-AI form filling, not to build or run normal dictation.
+Foundation Models support. Older SDKs omit cleanup. Xcode resolves the pinned
+Sparkle dependency. A clean clone builds independently of Dorsal and without
+API credentials. To dictate in the built app, save an OpenAI API key.
 
 ```sh
 git clone https://github.com/markadebartolo/hello-transcriber.git

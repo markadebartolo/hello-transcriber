@@ -2,6 +2,21 @@
 
 November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon host.
 
+## Notarized candidate 0.1.1, build 28
+
+- Source commit `1aa5e4bbb8f8127e61def9231aa79637dc39e698`.
+- Apple submission `7b70cc8c-9d7a-4e67-9283-a2fa0bb28ced` was **Accepted**.
+  The installed app and the app extracted locally from the candidate ZIP passed
+  signature, staple, and Gatekeeper checks. Both Sparkle signatures verified.
+- The local universal Swift 6 build and regression suite passed. The hosted
+  [macOS CI run](https://github.com/markadebartolo/hello-transcriber/actions/runs/43665277853)
+  ended before any job steps ran.
+- Hello detected the saved OpenAI key on launch. The maintainer tested live
+  dictation and reported that punctuation and formatting appeared fixed and
+  that the final result took longer than Apple Speech.
+- The rest of the signed-device smoke procedure and the smoke test of the exact
+  GitHub download remain pending.
+
 ## Notarized candidate 0.1.0, build 18
 
 - Source: [6f564c21ad6fc6a05f565bc2fbe31ae4d627dd8e](https://github.com/markadebartolo/hello-transcriber/commit/6f564c21ad6fc6a05f565bc2fbe31ae4d627dd8e).
@@ -27,8 +42,7 @@ November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon h
 At the user's request, this candidate was submitted for notarization while the
 remaining functionality tests were still pending. Notarization is not evidence
 that dictation, field insertion, permission recovery or form filling work correctly.
-The source repository and PR remain private/draft; no public binary release or
-matching source tag has been published. Publication gates remain in place.
+Build 18 was a validation candidate.
 
 ## Earlier engineering checks
 

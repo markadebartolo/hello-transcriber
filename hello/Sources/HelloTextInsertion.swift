@@ -21,6 +21,95 @@ enum HelloTextFieldEligibility {
     }
 }
 
+/// Adjusts only the text being appended. Never rewrites an existing draft,
+/// changes a recognized word, or formats an insertion in the middle of text.
+enum HelloDraftPunctuation {
+    static func appendChunk(_ text: String, to draft: String, selection: CFRange) -> String {
+        guard selection.length == 0, selection.location == draft.utf16.count,
+              let first = text.first, !first.isWhitespace else { return text }
+
+        var prefix = ""
+        if let last = draft.last, !last.isWhitespace,
+           !".,;:!?…。！？、，；：)]}”’".contains(first),
+           !"([{“".contains(last) {
+            let newerSentence = first.isUppercase && canFinish(draft)
+            prefix = newerSentence ? (isQuestion(draft) ? "? " : ". ") : " "
+        }
+
+        let suffix = canFinish(text) ? (isQuestion(text) ? "?" : ".") : ""
+        return prefix + text + suffix
+    }
+
+    private static func canFinish(_ text: String) -> Bool {
+        // Preserve existing punctuation, closing quotes and explicitly supplied
+        // whitespace. Avoid adding a period to a lone word, URL or address.
+        guard let last = text.last, last.isLetter || last.isNumber,
+              let line = text.split(whereSeparator: \.isNewline).last else { return false }
+        let words = line.split(whereSeparator: \.isWhitespace)
+        guard words.count > 1, let tail = words.last else { return false }
+        return !tail.contains("://") && !tail.contains("@") && !tail.contains(".")
+    }
+
+    private static func isQuestion(_ text: String) -> Bool {
+        let line = text.split(whereSeparator: \.isNewline).last ?? ""
+        let sentence = line.split(whereSeparator: { ".!?".contains($0) }).last ?? line
+        let words = sentence.lowercased().split(whereSeparator: \.isWhitespace)
+        let auxiliaries: Set<Substring> = ["am", "are", "is", "was", "were", "do", "does", "did",
+            "can", "could", "will", "would", "should", "have", "has", "may"]
+        let pronouns: Set<Substring> = ["i", "you", "he", "she", "it", "we", "they", "there", "this", "that"]
+        let interrogatives: Set<Substring> = ["what", "when", "where", "why", "who", "how", "which"]
+        guard words.count >= 3 else { return false }
+        return (auxiliaries.contains(words[0]) && pronouns.contains(words[1]))
+            || (interrogatives.contains(words[0]) && auxiliaries.contains(words[1]))
+    }
+}
+
+enum HelloPastePolicy {
+    static func shouldUsePaste(for bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == "com.openai.chat" || bundleIdentifier == "com.openai.codex"
+    }
+
+    static func isPlainPaste(role: String?, enabled: Bool?, character: String?, modifiers: Int?) -> Bool {
+        // Accessibility encodes Command as the default in a zero modifier mask.
+        role == kAXMenuItemRole && enabled == true &&
+            character?.lowercased() == "v" && modifiers == 0
+    }
+}
+
+@MainActor
+struct HelloClipboardSnapshot {
+    let changeCount: Int
+    let items: [NSPasteboardItem]
+
+    init?(_ pasteboard: NSPasteboard) {
+        changeCount = pasteboard.changeCount
+        let originals = pasteboard.pasteboardItems ?? []
+        guard originals.count <= 32, !originals.isEmpty || pasteboard.types?.isEmpty != false else { return nil }
+        var copies: [NSPasteboardItem] = []
+        var bytes = 0
+        for original in originals {
+            guard !original.types.isEmpty else { return nil }
+            let copy = NSPasteboardItem()
+            for type in original.types {
+                guard !type.rawValue.lowercased().contains("filepromise"),
+                      !type.rawValue.lowercased().contains("promised-file"),
+                      let data = original.data(forType: type), data.count <= 16_000_000 - bytes,
+                      copy.setData(data, forType: type) else { return nil }
+                bytes += data.count
+            }
+            copies.append(copy)
+        }
+        guard pasteboard.changeCount == changeCount else { return nil }
+        items = copies
+    }
+
+    func restore(_ pasteboard: NSPasteboard, ifUnchangedSince count: Int) {
+        guard pasteboard.changeCount == count else { return }
+        pasteboard.clearContents()
+        if !items.isEmpty { pasteboard.writeObjects(items) }
+    }
+}
+
 /// AX setters may return before an application's accessibility value refreshes.
 /// Poll only the readback: retrying the write could insert the text twice.
 @MainActor
@@ -48,12 +137,13 @@ enum HelloInsertionVerification {
 struct HelloTextDestination {
     let applicationIdentifier: pid_t
     let applicationName: String
+    private let usesPaste: Bool
     private let element: AXUIElement
     private let selectedRange: CFRange
     private let originalValue: String
 
     enum InsertionFailure: Error, LocalizedError {
-        case accessibility, secure, noField, unsupported, selectionUnavailable, differentApp, changed, notWritable, writeFailed, unverified
+        case accessibility, secure, noField, unsupported, selectionUnavailable, differentApp, changed, notWritable, writeFailed, unverified, clipboardUnavailable
         var errorDescription: String? {
             switch self {
             case .accessibility: return "Allow Hello in Accessibility to insert text."
@@ -65,6 +155,7 @@ struct HelloTextDestination {
             case .changed: return "The field, selection, or app changed before insertion."
             case .notWritable: return "This field does not allow its selected text to be replaced."
             case .writeFailed: return "The app did not accept text insertion."
+            case .clipboardUnavailable: return "Hello couldn’t preserve the clipboard for this paste. Your transcript is available to copy."
             case .unverified: return "The app accepted the insertion request, but Hello could not verify the resulting text. Check the field before pasting."
             }
         }
@@ -90,10 +181,15 @@ struct HelloTextDestination {
         return HelloTextDestination(
             applicationIdentifier: application.processIdentifier,
             applicationName: application.localizedName ?? "your app",
+            usesPaste: HelloPastePolicy.shouldUsePaste(for: application.bundleIdentifier),
             element: element,
             selectedRange: range,
             originalValue: value
         )
+    }
+
+    func preparedInsertion(_ text: String) -> String {
+        usesPaste ? HelloDraftPunctuation.appendChunk(text, to: originalValue, selection: selectedRange) : text
     }
 
     /// Replace the verified selection, or set a verified completely empty field.
@@ -101,6 +197,7 @@ struct HelloTextDestination {
         guard !text.isEmpty else { return .failure(.writeFailed) }
         guard !Task.isCancelled, isCurrent() else { return .failure(.changed) }
         if let failure = validationFailure() { return .failure(failure) }
+        if usesPaste { return await paste(text, isCurrent: isCurrent) }
         var valueSettable = DarwinBoolean(false)
         let canSetValue = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &valueSettable) == .success && valueSettable.boolValue
         let writeAttribute = HelloTextFieldEligibility.writeAttribute(original: originalValue,
@@ -112,6 +209,65 @@ struct HelloTextDestination {
         if let failure = validationFailure() { return .failure(failure) }
         guard !Task.isCancelled, isCurrent() else { return .failure(.changed) }
         guard AXUIElementSetAttributeValue(element, writeAttribute as CFString, text as CFString) == .success else { return .failure(.writeFailed) }
+        return await verifyInsertion(text, isCurrent: isCurrent)
+    }
+
+    private func paste(_ text: String, isCurrent: () -> Bool) async -> Result<Void, InsertionFailure> {
+        guard let command = pasteMenuItem() else { return .failure(.notWritable) }
+        let pasteboard = NSPasteboard.general
+        guard let snapshot = HelloClipboardSnapshot(pasteboard) else { return .failure(.clipboardUnavailable) }
+        if let failure = validationFailure() { return .failure(failure) }
+        guard !Task.isCancelled, isCurrent() else { return .failure(.changed) }
+        guard pasteboard.changeCount == snapshot.changeCount else { return .failure(.clipboardUnavailable) }
+        var ownedCount = pasteboard.clearContents()
+        defer { snapshot.restore(pasteboard, ifUnchangedSince: ownedCount) }
+        let wrote = pasteboard.setString(text, forType: .string)
+        ownedCount = pasteboard.changeCount
+        guard wrote else { return .failure(.writeFailed) }
+        // Revalidate after staging the clipboard. The action belongs to the
+        // captured app's own menu, so no synthetic keys can reach another app.
+        if let failure = validationFailure() { return .failure(failure) }
+        guard !Task.isCancelled, isCurrent() else { return .failure(.changed) }
+        guard pasteboard.changeCount == ownedCount, pasteboard.string(forType: .string) == text else {
+            return .failure(.clipboardUnavailable)
+        }
+        let result = AXUIElementPerformAction(command, kAXPressAction as CFString)
+        // A timeout does not prove the target failed to paste. Never retry it.
+        guard result == .success || result == .cannotComplete else { return .failure(.writeFailed) }
+        return await verifyInsertion(text, isCurrent: isCurrent)
+    }
+
+    private func pasteMenuItem() -> AXUIElement? {
+        let app = AXUIElementCreateApplication(applicationIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        guard let bar = Self.attribute(kAXMenuBarAttribute, of: app), CFGetTypeID(bar) == AXUIElementGetTypeID(),
+              let top = Self.attribute(kAXChildrenAttribute, of: bar as! AXUIElement) as? [AXUIElement] else { return nil }
+        let deadline = ContinuousClock.now + .milliseconds(750)
+        var candidates: [AXUIElement] = []
+        for group in top.prefix(24) {
+            guard let menus = Self.attribute(kAXChildrenAttribute, of: group) as? [AXUIElement] else { continue }
+            for menu in menus.prefix(4) {
+                guard let items = Self.attribute(kAXChildrenAttribute, of: menu) as? [AXUIElement] else { continue }
+                for item in items.prefix(100) {
+                    guard ContinuousClock.now < deadline else { return nil }
+                    guard let key = Self.attribute(kAXMenuItemCmdCharAttribute, of: item) as? String,
+                          key.lowercased() == "v" else { continue }
+                    if HelloPastePolicy.isPlainPaste(
+                        role: Self.attribute(kAXRoleAttribute, of: item) as? String,
+                        enabled: Self.attribute(kAXEnabledAttribute, of: item) as? Bool,
+                        character: key,
+                        modifiers: Self.attribute(kAXMenuItemCmdModifiersAttribute, of: item) as? Int
+                    ) {
+                        candidates.append(item)
+                    }
+                }
+            }
+        }
+        guard candidates.count == 1 else { return nil }
+        return candidates.first
+    }
+
+    private func verifyInsertion(_ text: String, isCurrent: () -> Bool) async -> Result<Void, InsertionFailure> {
         let expected = (originalValue as NSString).replacingCharacters(
             in: NSRange(location: selectedRange.location, length: selectedRange.length), with: text)
         let verification = await HelloInsertionVerification.waitForValue(expected,

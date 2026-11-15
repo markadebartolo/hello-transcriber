@@ -123,6 +123,7 @@ final class HelloAppDelegate: NSObject, NSApplicationDelegate {
 private struct HelloPanel: View {
     @ObservedObject var controller: HelloController
     @State private var apiKey = ""
+    @State private var speechAPIKey = ""
     @ObservedObject var updates: HelloUpdates
     @State private var section = Section.overview
 
@@ -182,7 +183,10 @@ private struct HelloPanel: View {
         .buttonStyle(HelloButtonStyle())
         .onAppear { controller.refreshShortcut() }
         .onChange(of: controller.formProvider) { _, _ in apiKey = "" }
-        .onChange(of: section) { _, newSection in if newSection != .forms { apiKey = "" } }
+        .onChange(of: section) { _, newSection in
+            if newSection != .forms { apiKey = "" }
+            if newSection != .dictation { speechAPIKey = "" }
+        }
     }
 
     @ViewBuilder private var overview: some View {
@@ -191,6 +195,11 @@ private struct HelloPanel: View {
                 .font(.system(size: 13, weight: .medium))
             Text(controller.statusText).font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !controller.speechFallbackMessage.isEmpty {
+                Label(controller.speechFallbackMessage, systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !controller.insertionMessage.isEmpty {
                 Text(controller.insertionMessage).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -248,15 +257,45 @@ private struct HelloPanel: View {
     private var dictationSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeading("Dictation", detail: "Choose what Hello does with your words after you release the shortcut.")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("OpenAI transcription").font(.headline)
+                Text("Hello automatically uses your saved OpenAI key to transcribe the recording when you release the keys. OpenAI bills usage to your account.")
+                    .font(.callout).foregroundStyle(.secondary)
+                SecureField("OpenAI API key", text: $speechAPIKey).textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("Save key") { controller.saveSpeechAPIKey(speechAPIKey); speechAPIKey = "" }
+                        .disabled(speechAPIKey.isEmpty || controller.isBusy)
+                    Button("Check saved key", action: controller.checkSpeechAPIKey).disabled(controller.isBusy)
+                    Button("Remove key", action: controller.removeSpeechAPIKey).disabled(controller.isBusy)
+                }
+                if !controller.speechKeyStatus.isEmpty {
+                    Text(controller.speechKeyStatus).font(.caption)
+                }
+                Text("You can reuse the OpenAI key saved for Form Filling.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Live word preview").font(.headline)
+                Text("Apple Speech shows provisional words on this Mac while you hold the keys. If OpenAI fails, Hello can use a completed on-device result and tell you what went wrong.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Label(controller.speechReady ? "Allowed" : "Not allowed (optional)",
+                      systemImage: controller.speechReady ? "checkmark.circle.fill" : "circle")
+                    .font(.caption)
+                if !controller.speechReady {
+                    Button("Allow Apple Speech preview") { controller.requestAudioPermission(.speech) }
+                        .disabled(controller.isBusy)
+                }
+            }
+            Divider()
             if controller.formMode {
-                Label("Form Filling is on. Turn it off to use these dictation settings.", systemImage: "info.circle")
+                Label("Form Filling is on. Hello sends the final transcript to your selected form provider.", systemImage: "info.circle")
                     .font(.callout).foregroundStyle(.secondary)
                 Button("Open Form Filling") { section = .forms }
             }
             VStack(alignment: .leading, spacing: 6) {
-                Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert)
-                    .disabled(controller.formMode || controller.isBusy).helloPointer()
-                Text("Hello inserts into the field you started in when it can verify the selection. If it can’t safely insert, it copies your words or asks you to check the field.")
+                Text("Automatic insertion").font(.headline)
+                Text("Dictation goes into the field you started in when Hello can verify the selection. If it can’t safely insert, it copies your words or asks you to check the field.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 6) {
@@ -269,7 +308,7 @@ private struct HelloPanel: View {
             }
             Divider()
             Text("Speech privacy").font(.headline)
-            Text("Apple Speech runs on your Mac where supported. Otherwise Apple may process the audio. Hello keeps the latest transcript in memory and skips password fields.")
+            Text("OpenAI receives the recording. Hello joins sentences to your draft on this Mac. The draft is never included in the transcription request.")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }
@@ -306,7 +345,8 @@ private struct HelloPanel: View {
     }
 
     private var formSettings: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let screenshotsAllowed = controller.screenCaptureReady
+        return VStack(alignment: .leading, spacing: 12) {
             sectionHeading("Form Filling", detail: "Dictate answers into empty fields. This optional feature uses your AI provider and can fill several fields at once.")
             Text("Connect a provider").font(.headline)
             Picker("AI provider", selection: $controller.formProvider) {
@@ -315,6 +355,10 @@ private struct HelloPanel: View {
                 }
             }.disabled(controller.isBusy)
             Text("Model: \(controller.formProvider.model)").font(.caption).foregroundStyle(.secondary)
+            if controller.formProvider == .openAI {
+                Text("Hello also uses this OpenAI key to transcribe your recordings when you release the dictation shortcut.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             SecureField("\(controller.formProvider.displayName) API key", text: $apiKey)
                 .textFieldStyle(.roundedBorder)
             HStack {
@@ -327,7 +371,18 @@ private struct HelloPanel: View {
             if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
             Divider()
             Text("Allow screenshots").font(.headline)
-            Button("Allow form filling screenshots") { controller.requestScreenAccess() }.disabled(controller.isBusy)
+            HStack {
+                Label(screenshotsAllowed ? "Allowed" : "Not allowed",
+                      systemImage: screenshotsAllowed ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(screenshotsAllowed ? Color.green : Color.secondary)
+                    .accessibilityLabel(screenshotsAllowed
+                                        ? "Screenshot permission allowed" : "Screenshot permission not allowed")
+                Spacer()
+                Button(screenshotsAllowed ? "Open Screen Recording Settings" : "Allow form filling screenshots") {
+                    controller.requestScreenAccess()
+                }
+                .disabled(controller.isBusy)
+            }
             Text("Form filling uses a screenshot of the active window to identify text boxes. macOS calls this permission Screen Recording. Hello does not continuously record your screen or save screenshots. Ordinary dictation does not need this permission. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
                 .font(.caption).foregroundStyle(.secondary)
             Divider()
@@ -370,7 +425,7 @@ private struct HelloPermissions: View {
                     controller.requestAudioPermission(.microphone)
                 }
                 permission("Speech Recognition", icon: "text.bubble", detail: "Turn speech into text",
-                           ready: controller.speechReady) {
+                           ready: controller.speechReady, optional: true) {
                     controller.requestAudioPermission(.speech)
                 }
                 permission("Accessibility", icon: "accessibility", detail: "Insert into a text field",
@@ -379,7 +434,7 @@ private struct HelloPermissions: View {
                 }
                 permission("Input Monitoring", icon: "keyboard", detail: "Listen for the shortcut",
                            ready: !controller.inputMonitoringNeeded,
-                           readyLabel: controller.shortcutMonitor.tapUnavailable ? "Check shortcut" : "Shortcut available") {
+                           readyLabel: controller.inputMonitoringReady ? "Allowed" : "Not allowed (optional)") {
                     controller.openPrivacySettings("ListenEvent")
                 }
             }
@@ -392,9 +447,6 @@ private struct HelloPermissions: View {
         if !controller.microphoneReady {
             return ("Set up microphone", { controller.requestAudioPermission(.microphone) })
         }
-        if !controller.speechReady {
-            return ("Set up speech recognition", { controller.requestAudioPermission(.speech) })
-        }
         if !controller.accessibilityReady {
             return ("Set up Accessibility", { controller.openPrivacySettings("Accessibility") })
         }
@@ -406,7 +458,7 @@ private struct HelloPermissions: View {
     }
 
     private func permission(_ title: String, icon: String, detail: String, ready: Bool,
-                            readyLabel: String = "Allowed", action: @escaping () -> Void) -> some View {
+                            readyLabel: String = "Allowed", optional: Bool = false, action: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: icon).foregroundStyle(.blue).accessibilityHidden(true)
             Text(title).font(.subheadline.weight(.semibold))
@@ -414,7 +466,7 @@ private struct HelloPermissions: View {
             if ready {
                 Text(readyLabel).font(.caption.weight(.medium)).foregroundStyle(.secondary)
             } else {
-                Text("Needs setup").font(.caption).foregroundStyle(.secondary)
+                Text(optional ? "Not allowed (optional)" : "Not allowed").font(.caption).foregroundStyle(.secondary)
                 Button("Set up", action: action)
                     .font(.caption).disabled(controller.isBusy)
                     .accessibilityLabel("Set up \(title)")

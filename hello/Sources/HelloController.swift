@@ -53,7 +53,9 @@ final class HelloController: ObservableObject {
     private var formCaptureError: String?
     private var contextIdentifier = UUID()
     private var sessionUsesForms = false
-    @Published var automaticallyInsert = true
+    @Published private(set) var speechKeyStatus = ""
+    @Published private(set) var speechFallbackMessage = ""
+    @Published private var provisionalTranscript = ""
     @Published var cleanPunctuation = false
 
     private var subscriptions = Set<AnyCancellable>()
@@ -69,6 +71,8 @@ final class HelloController: ObservableObject {
     var microphoneReady: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
     var speechReady: Bool { SFSpeechRecognizer.authorizationStatus() == .authorized }
     var accessibilityReady: Bool { AXIsProcessTrusted() }
+    var screenCaptureReady: Bool { CGPreflightScreenCaptureAccess() }
+    var inputMonitoringReady: Bool { CGPreflightListenEventAccess() }
     var isBusy: Bool { recordingTask != nil || dictation.isDictationInProgress || isProcessingTranscript || isRequestingPermissions }
     var recordingFeedback: HelloRecordingFeedback {
         HelloRecordingFeedback(
@@ -83,7 +87,7 @@ final class HelloController: ObservableObject {
         if isRequestingPermissions { return "Waiting for permission…" }
         if dictation.isPreparingToRecord { return "Starting microphone…" }
         if dictation.isActivelyRecordingAudio { return "Listening — release to finish" }
-        if dictation.isFinalizingTranscript { return "Transcribing…" }
+        if dictation.isFinalizingTranscript { return "Transcribing with OpenAI…" }
         if isProcessingTranscript {
             return sessionUsesForms ? "Matching your words to the form…" : cleanPunctuation ? "Tidying punctuation…" : "Inserting…"
         }
@@ -94,7 +98,8 @@ final class HelloController: ObservableObject {
     var liveCaption: String {
         switch recordingFeedback.phase {
         case .hidden, .result: return ""
-        case .starting, .listening, .transcribing: return transcript
+        case .starting, .listening: return provisionalTranscript
+        case .transcribing: return ""
         case .processing, .stopped:
             return originalTranscript.isEmpty ? transcript : originalTranscript
         }
@@ -103,6 +108,10 @@ final class HelloController: ObservableObject {
     init() {
         spellingMemory.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
         dictation.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
+        dictation.$lastErrorMessage.sink { [weak self] error in
+            guard error != nil, let self else { return }
+            self.announceResult("Transcription failed")
+        }.store(in: &subscriptions)
         shortcutMonitor.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
         shortcutMonitor.shortcutTransitionPublisher.sink { [weak self] transition in
             switch transition {
@@ -133,7 +142,7 @@ final class HelloController: ObservableObject {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled, let self else { return }
                 self.refreshShortcut()
-                if self.dictation.isDictationInProgress && (!self.microphoneReady || !self.speechReady) {
+                if self.dictation.isDictationInProgress && !self.microphoneReady {
                     self.cancel()
                 }
             }
@@ -145,10 +154,38 @@ final class HelloController: ObservableObject {
         statusPanel = HelloStatusPanel(controller: self)
     }
 
+    func saveSpeechAPIKey(_ value: String) {
+        guard !isBusy else { return }
+        let saved = HelloAPIKey.save(value, for: .openAI)
+        speechKeyStatus = saved ? "OpenAI key saved in Keychain." : "Could not save the key. Check it and try again."
+        if saved && formProvider == .openAI { hasAPIKey = true }
+    }
+
+    func checkSpeechAPIKey() {
+        speechKeyStatus = HelloAPIKey.read(for: .openAI) == nil
+            ? "No OpenAI key is available. Add one here."
+            : "OpenAI key is available in Keychain."
+    }
+
+    func removeSpeechAPIKey() {
+        guard !isBusy else { return }
+        if HelloAPIKey.remove(for: .openAI) {
+            speechKeyStatus = "Key removed."
+            if formProvider == .openAI {
+                hasAPIKey = false
+                formMode = false
+                keyMessage = ""
+            }
+        } else {
+            speechKeyStatus = "Keychain could not remove the key."
+        }
+    }
+
     func saveAPIKey(_ value: String) {
         guard !isBusy else { return }
         if HelloAPIKey.save(value, for: formProvider) {
             hasAPIKey = true
+            if formProvider == .openAI { speechKeyStatus = "OpenAI key saved in Keychain." }
             keyMessage = "Key saved in this Mac's Keychain."
         } else { keyMessage = "Could not save the key. Unlock Keychain and try again." }
     }
@@ -161,12 +198,19 @@ final class HelloController: ObservableObject {
     func removeAPIKey() {
         guard !isBusy else { return }
         formMode = false
-        if HelloAPIKey.remove(for: formProvider) { hasAPIKey = false; keyMessage = "Key removed." }
-        else { keyMessage = "Keychain could not remove the key." }
+        if HelloAPIKey.remove(for: formProvider) {
+            hasAPIKey = false
+            keyMessage = "Key removed."
+            if formProvider == .openAI {
+                speechKeyStatus = "Key removed."
+            }
+        } else {
+            keyMessage = "Keychain could not remove the key."
+        }
     }
 
     func requestScreenAccess() {
-        if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+        if !screenCaptureReady { _ = CGRequestScreenCaptureAccess() }
         openPrivacySettings("ScreenCapture")
     }
 
@@ -183,7 +227,7 @@ final class HelloController: ObservableObject {
 
     }
 
-    var inputMonitoringNeeded: Bool { shortcutMonitor.tapUnavailable && !CGPreflightListenEventAccess() }
+    var inputMonitoringNeeded: Bool { shortcutMonitor.tapUnavailable && !inputMonitoringReady }
 
     enum AudioPermission { case microphone, speech }
 
@@ -235,12 +279,12 @@ final class HelloController: ObservableObject {
     private func startRecording() {
         guard !isBusy else { return }
         stopSpellingObservation()
-        guard microphoneReady && speechReady else {
-            resultMessage = "Open Hello and enable microphone and speech recognition first."
+        guard microphoneReady else {
+            resultMessage = "Open Hello and allow microphone access."
             return
         }
         let missingFormAccess = HelloFormPrerequisites.missing(enabled: formMode,
-            screenAllowed: { CGPreflightScreenCaptureAccess() },
+            screenAllowed: { screenCaptureReady },
             keyAvailable: { HelloAPIKey.read(for: formProvider) != nil })
         if missingFormAccess == .screenAccess {
             resultMessage = "Open Hello → Form filling → Allow form filling screenshots. macOS calls this permission Screen Recording."
@@ -253,6 +297,23 @@ final class HelloController: ObservableObject {
         dismissResult()
         let identifier = UUID()
         sessionIdentifier = identifier
+        provisionalTranscript = ""
+        speechFallbackMessage = ""
+        dictation.configureTranscriptionProvider(HelloOpenAITranscriptionProvider(
+            readKey: { HelloAPIKey.read(for: .openAI) },
+            allowsApplePreview: speechReady,
+            onApplePreview: { [weak self] text in
+                Task { @MainActor in
+                    guard let self, self.sessionIdentifier == identifier, self.dictation.isActivelyRecordingAudio else { return }
+                    self.provisionalTranscript = text
+                }
+            },
+            onAppleFallback: { [weak self] reason in
+                Task { @MainActor in
+                    guard let self, self.sessionIdentifier == identifier else { return }
+                    self.speechFallbackMessage = "Used on-device Apple Speech. \(reason)"
+                }
+            }))
         contextIdentifier = UUID()
         sessionUsesForms = formMode
         sessionSpellings = spellingMemoryEnabled && !formMode ? spellingMemory.entries : []
@@ -268,7 +329,7 @@ final class HelloController: ObservableObject {
         }
         destination = nil
         insertionMessage = ""
-        if automaticallyInsert && !sessionUsesForms {
+        if !sessionUsesForms {
             do { destination = try HelloTextDestination.capture() }
             catch { insertionMessage = error.localizedDescription }
         }
@@ -295,6 +356,7 @@ final class HelloController: ObservableObject {
     }
 
     private func finishRecording() {
+        provisionalTranscript = ""
         recordingTask?.cancel()
         recordingTask = nil
         dictation.stopPushToTalkFromKeyboardShortcut()
@@ -312,7 +374,7 @@ final class HelloController: ObservableObject {
             return
         }
         let shouldClean = cleanPunctuation && OnDeviceModel.isAvailable
-        let shouldInsert = automaticallyInsert && !shouldClean
+        let shouldInsert = !shouldClean
         isProcessingTranscript = shouldClean || shouldInsert
         let capturedDestination = destination
         let capturedRevision = contextIdentifier
@@ -341,7 +403,8 @@ final class HelloController: ObservableObject {
             transcript = HelloTranscriptPolicy.acceptedCleanup(candidate, original: preparedText)
             cleanupTimeoutTask?.cancel()
             if shouldInsert, contextIdentifier == capturedRevision, let capturedDestination {
-                let insertion = await capturedDestination.insert(transcript, isCurrent: {
+                let insertedText = capturedDestination.preparedInsertion(transcript)
+                let insertion = await capturedDestination.insert(insertedText, isCurrent: {
                     self.sessionIdentifier == identifier && self.contextIdentifier == capturedRevision
                 })
                 guard !Task.isCancelled, sessionIdentifier == identifier else { return }
@@ -350,12 +413,14 @@ final class HelloController: ObservableObject {
                 case .success:
                     insertionMessage = ""
                     announceResult("Inserted into \(capturedDestination.applicationName).")
-                    if spellingMemoryEnabled, let watch = capturedDestination.correctionWatch(afterInserting: transcript) {
+                    if spellingMemoryEnabled, let watch = capturedDestination.correctionWatch(afterInserting: insertedText) {
                         observeSpellingCorrections(watch)
                     }
                 case .failure(let error):
                     insertionMessage = "\(capturedDestination.applicationName): \(error.localizedDescription)"
-                    if error == .unverified {
+                    if error == .clipboardUnavailable {
+                        announceResult("Transcript ready")
+                    } else if error == .unverified {
                         // A successful setter can still be pending or partially
                         // applied. Do not encourage an automatic duplicate paste.
                         announceResult("Check text field")
@@ -366,7 +431,6 @@ final class HelloController: ObservableObject {
             } else {
                 isProcessingTranscript = false
                 if shouldClean { insertionMessage = "Punctuation cleanup is review-only. Review the suggestion in Hello." }
-                else if !automaticallyInsert { insertionMessage = "Automatic insertion is turned off." }
                 else if contextIdentifier != capturedRevision { insertionMessage = "The field, selection, or app changed before insertion." }
                 copyFallbackTranscript()
             }
@@ -471,6 +535,7 @@ final class HelloController: ObservableObject {
     }
 
     func clearTranscript() {
+        speechFallbackMessage = ""
         cancel()
         transcript = ""
         originalTranscript = ""
@@ -478,6 +543,8 @@ final class HelloController: ObservableObject {
     }
 
     func cancel() {
+        provisionalTranscript = ""
+        speechFallbackMessage = ""
         stopSpellingObservation(clearSuggestion: true)
         insertionMessage = ""
         dismissResult()

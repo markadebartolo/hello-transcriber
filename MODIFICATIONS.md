@@ -199,3 +199,22 @@ Basic dictation's startup gate now explicitly skips all screen/key checks when
 Form filling is off, verified with failing probe closures in the regressions.
 Changing the form provider or removing a key while idle no longer clears a normal
 transcript. Form filling remains separately opt-in and off at launch.
+
+
+## November 14, 2026 — OpenAI speech and draft-aware insertion
+
+Hello can select the provider while the dictation manager is idle. The
+shared manager change retains its generation, cancellation and microphone
+lifecycle. Apple Speech provides an on-device preview and a fallback after an OpenAI
+failure. The OpenAI provider
+holds a bounded mono WAV recording in memory, requests transcription only after
+release, rejects redirects and reports network or authorization failure without
+sending the recording to a different server. The key stays in Keychain until a
+session needs it. Hello automatically uses the saved OpenAI key for dictation.
+No destination draft or screenshot enters the transcription
+request. The original source provenance stays unchanged and the current
+manager and Apple preview checksums were refreshed.
+
+ChatGPT end-of-draft insertion adds a spacing boundary and conservative terminal
+punctuation to the inserted chunk only. Existing draft content, selected-text
+replacement, recognized words and the separate form-filling route are preserved.

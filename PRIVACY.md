@@ -5,28 +5,36 @@ There is no always-listening product mode, telemetry, account, license server,
 private Dorsal service, or embedded API credential. Optional form filling captures
 a single foreground-window screenshot after an explicit dictation when enabled.
 
-Audio buffers go to Apple's Speech framework. Hello sets
-[`requiresOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognitionrequest/requiresondevicerecognition)
-when the selected recognizer reports
-[`supportsOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognizer/supportsondevicerecognition).
-When on-device recognition is unsupported, Apple may receive audio for processing;
-network access/service availability may be required. When on-device recognition is
-required but fails, Hello reports a failure rather than silently retrying remotely.
-The recognition language follows the Mac's locale, with en-US as a fallback when
-no recognizer can be constructed. Locale support does not guarantee availability.
-Apple controls its service's handling/retention; Hello does not make a claim that
-Apple stores nothing. Speech authorization is required even for on-device requests.
-See [Apple's authorization documentation](https://developer.apple.com/documentation/speech/asking-permission-to-use-speech-recognition).
+If Speech Recognition is allowed and a compatible local recognizer exists,
+Hello uses Apple's Speech framework for provisional words and a possible local
+fallback. It requires on-device recognition for that path. If no local
+recognizer is available, the waveform can still show while you record. Apple
+Speech authorization is optional and never enables remote Apple processing.
+
+With an OpenAI key saved in Keychain, releasing the dictation shortcut sends the
+completed recording from memory to the OpenAI audio transcription endpoint over
+HTTPS. This uses your key and can incur charges. Only the microphone recording is
+sent for transcription. The destination draft and screenshots are excluded.
+Cancel before release to discard the recording without submitting it. After
+release, cancelling stops local processing but cannot recall data already sent.
+If OpenAI fails, Hello can use a completed on-device Apple result. It reports
+the failure and does not submit the same audio to another server. See
+[OpenAI’s API data controls](https://developers.openai.com/api/docs/guides/your-data).
 
 Optional punctuation cleanup runs through the on-device
 [Foundation Models framework](https://developer.apple.com/documentation/foundationmodels/generating-content-and-performing-tasks-with-foundation-models).
 Hello sends it only the transcript, not text from the destination field. No external
-LLM API is called for punctuation cleanup. The proposal is review-only, never automatically inserted.
+LLM API is called for the separate punctuation review. The proposal is review-only, never automatically inserted.
 
 Accessibility reads the original app, focused element, text value and selection
 in memory to verify that insertion is still safe. Secure Input and secure text
 fields are excluded. Normal dictation writes AX selected text after revalidation,
-or sets AXValue for a verified completely empty field with a writable value. It
+or sets AXValue for a verified completely empty field with a writable value.
+For ChatGPT, Hello temporarily puts the transcript on the system clipboard and
+invokes the app’s Paste command once. It keeps a bounded snapshot of readable
+clipboard items in memory, restores it if the clipboard still belongs to Hello,
+and leaves a newer user copy alone. Clipboard managers may observe the temporary
+transcript. Hello
 never generates Return/Send. An external application's Accessibility API cannot
 provide an atomic compare-and-set transaction, so insertion is best effort and
 unsupported/ambiguous fields fall back to automatic clipboard copy. Avoid editing or switching focus
@@ -128,7 +136,8 @@ saved to preferences. Use **Remove key** in Hello to delete it; deleting the app
 alone does not remove a Keychain entry. The secure entry field clears after saving or changing provider. The saved OpenAI
 key namespace is preserved across this upgrade; no re-entry is needed. The selected
 provider name is a local preference. No maintainer key ships with Hello.
-No API key is needed for normal dictation or local punctuation cleanup.
+Normal dictation requires an OpenAI key. Local punctuation cleanup uses the
+on-device Foundation Models framework without a key.
 
 Form mode sets an empty field's AX value without selecting it, rather than changing
 focus or synthesizing keys. Multi-field writes are not atomic. Hello stops on any

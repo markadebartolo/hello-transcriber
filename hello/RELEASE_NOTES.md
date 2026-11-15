@@ -1,9 +1,20 @@
-# Hello 0.1.0
+# Hello 0.1.1
 
 First standalone Hello Transcriber candidate, developed from the scoped Dorsal
 extraction on November 14, 2026. No earlier Hello release history is implied.
 
-- Hold Control + Option to dictate using Apple Speech; release to finish.
+- ChatGPT desktop dictation uses the app’s standard Paste command after verifying
+  the original selection and restores prior clipboard contents. Automatic
+  insertion no longer has a separate switch.
+- Permissions show current Allowed or Not allowed status, including screenshot
+  access on the Form Filling tab.
+- Successive ChatGPT dictations get spaces and conservative terminal punctuation
+  at the end of the draft. Existing text is preserved.
+- OpenAI automatically transcribes and punctuates dictation after release using
+  your saved API key.
+  On-device Apple Speech shows live provisional words and can provide a
+  completed fallback if OpenAI fails. Hello reports the reason for falling back.
+- Hold Control + Option to speak and release to transcribe.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.
 - A small preview above the waveform shows up to three provisional words in the
@@ -38,8 +49,8 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   remote usage tracking, embedded credentials or transcript history.
 
 Requires macOS 14.2+. Optional cleanup needs macOS 26+ and an available Apple
-Intelligence model. Apple Speech requests on-device processing where supported;
-otherwise Apple may process audio remotely. See PRIVACY.md.
+Intelligence model. Apple Speech preview and fallback require on-device support; OpenAI processes
+the final dictation audio remotely. See PRIVACY.md.
 
 Validation recorded so far: local Xcode 27.2 universal compile on macOS 27.3;
 24 cleanup-policy cases and 12 injected lifecycle/audio-callback/live-partial regression scenarios,

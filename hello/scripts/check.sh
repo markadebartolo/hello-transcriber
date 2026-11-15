@@ -33,6 +33,10 @@ xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloFormPolicy.swift"
 xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloActivity.swift" \
   "$ROOT_DIR/hello/Tests/HelloActivityTests.swift" -o "$CHECK_DIR/activity-tests"
 "$CHECK_DIR/activity-tests"
+xcrun swiftc "${SWIFT_FLAGS[@]}" "$ROOT_DIR/hello/Sources/HelloOpenAITranscription.swift" \
+  "$ROOT_DIR/leanring-buddy/BuddyTranscriptionProvider.swift" "$ROOT_DIR/leanring-buddy/AppleSpeechTranscriptionProvider.swift" \
+  "$ROOT_DIR/hello/Tests/HelloOpenAITranscriptionTests.swift" -o "$CHECK_DIR/openai-transcription-tests"
+"$CHECK_DIR/openai-transcription-tests"
 xcodebuild -quiet -project "$ROOT_DIR/hello/Hello.xcodeproj" -scheme Hello \
   -configuration Debug -destination 'generic/platform=macOS' -derivedDataPath "$CHECK_DIR/DerivedData" \
   build CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
