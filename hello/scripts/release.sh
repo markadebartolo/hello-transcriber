@@ -29,6 +29,16 @@ if [[ "$MODE" == prepare ]]; then
   ditto "$OUT/Hello.xcarchive/Products/Applications/Hello.app" "$OUT/Hello.app"
   # License notices travel with the binary as well as the source distribution.
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/NOTICES.md" "$ROOT_DIR/third-party/Sparkle-LICENSE.txt" "$OUT/Hello.app/Contents/Resources/"
+  # Archive embeds Sparkle, but the SwiftPM helpers remain ad-hoc signed.
+  # Re-sign the helpers before their containing framework and application.
+  SPARKLE="$OUT/Hello.app/Contents/Frameworks/Sparkle.framework"
+  HELPERS="$SPARKLE/Versions/Current"
+  for helper in Autoupdate Updater.app XPCServices/Installer.xpc; do
+    codesign --force --sign "$HELLO_SIGNING_IDENTITY" --options runtime --timestamp "$HELPERS/$helper"
+  done
+  codesign --force --sign "$HELLO_SIGNING_IDENTITY" --options runtime --timestamp \
+    --preserve-metadata=entitlements "$HELPERS/XPCServices/Downloader.xpc"
+  codesign --force --sign "$HELLO_SIGNING_IDENTITY" --options runtime --timestamp "$SPARKLE"
   codesign --force --sign "$HELLO_SIGNING_IDENTITY" --options runtime --timestamp \
     --entitlements "$ROOT_DIR/hello/Hello.entitlements" "$OUT/Hello.app"
   bash "$ROOT_DIR/hello/scripts/verify-app.sh" "$OUT/Hello.app" "$TEAM"
