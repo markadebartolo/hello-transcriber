@@ -27,7 +27,7 @@ November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon h
 - The local universal Swift 6 build and regression suite passed.
   [Hosted CI](https://github.com/markadebartolo/hello-transcriber/actions/runs/43666076885)
   passed on macOS 15 and 26 after the repository became public.
-- Hello detected the saved OpenAI key on launch. The maintainer tested live
+- Hello’s **Check saved key** button found the OpenAI key. The maintainer tested live
   dictation and reported that punctuation and formatting appeared fixed and
   that the final result took longer than Apple Speech.
 - The ZIP downloaded from the GitHub draft matched the signed candidate byte
@@ -93,10 +93,6 @@ Build 18 was a validation candidate.
 - The compile check does not launch the app or access the microphone. Xcode emitted
   host CoreSimulator service/version diagnostics; this native macOS build succeeded.
 
-The remaining signed microphone/TCC/AX smoke and downloaded-artifact functionality
-validation are pending. Notarization and Gatekeeper results for build 18 are above. No unsigned
-application is a release artifact. Missing evidence must never be converted to a pass.
-
-Signed build 7 revealed an actual TCC callback isolation crash on this Mac. The
-callback bridge was corrected and a regression added; signed permission recovery
-must be re-observed on the replacement candidate before the release gate can pass.
+- Signed build 7 revealed a TCC callback isolation crash on this Mac. The
+  callback bridge was corrected and a regression added. Build 29's observed
+  microphone permission recovery is recorded above.

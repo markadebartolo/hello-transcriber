@@ -11,7 +11,8 @@ because the connected GitHub tool does not offer these operations.
 2. Read `security find-identity -v -p codesigning`. Set `HELLO_SIGNING_IDENTITY` to
    the exact valid **Developer ID Application** name. No default team is assumed.
    Set `HELLO_OUTPUT_DIRECTORY` to a new directory outside the repository.
-3. Run `bash hello/scripts/release.sh prepare 0.1.0 1`. This creates a universal,
+3. Run `bash hello/scripts/release.sh prepare "$VERSION" "$BUILD"` with the
+   intended version and build number. This creates a universal,
    hardened, timestamped signed app and manifest, but does not submit or publish.
    Licenses are bundled in Resources and covered by the final signature.
 4. Open the signed app through Finder. Run SMOKE_TEST.md and record **observed**
@@ -37,15 +38,15 @@ because the connected GitHub tool does not offer these operations.
    existing key for future releases. Back it up securely outside the repository.
    Failure means no distribution. The script deliberately
    preserves the signed candidate/work for diagnosis rather than deleting it.
-7. Create an annotated `hello-v0.1.0` tag at the manifest's exact source commit and
-   push only to Hello. Keep the new repository private during staging. Run
+7. Create an annotated `hello-v$VERSION` tag at the manifest's exact source commit
+   and push only to Hello. Keep the release unpublished during staging. Run
    `bash hello/scripts/publish.sh stage "$HELLO_OUTPUT_DIRECTORY"` to create a
    draft release, download the exact ZIP and appcast, compare bytes and reverify them.
 8. Open `downloaded/Hello.app` through Finder (quit the prior copy first), repeat
    microphone/insertion/cancellation checks, and record `downloaded-smoke.json`.
    Record the exact artifact checksum. Never distribute unsigned CI output.
-9. Review source and release assets, make only the NEW Hello repository public,
-   then run `bash hello/scripts/publish.sh publish "$HELLO_OUTPUT_DIRECTORY"`.
+9. Review source and release assets and verify that the Hello repository is public.
+   Run `bash hello/scripts/publish.sh publish "$HELLO_OUTPUT_DIRECTORY"`.
    The script checks the remote tag's resolved commit, evidence, signature,
    notarization ticket, Gatekeeper and a fresh download before publishing the draft.
 10. Verify public repository/release links and checksums. Check the public

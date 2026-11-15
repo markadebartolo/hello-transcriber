@@ -1,8 +1,31 @@
 # Contributing
 
-Open an issue describing a reproducible problem without transcripts or private
-field contents. Include macOS/Xcode versions, hardware, affected app version and
-whether the issue involves permissions, focus, capture or transcription.
+## Build and test
+
+Use macOS, Xcode 16 or later and Swift 6. Use Xcode 26 or later to build with
+Foundation Models support for punctuation review. Xcode resolves the pinned
+Sparkle dependency. A clean checkout builds independently of Dorsal and without
+API credentials.
+
+```sh
+git clone https://github.com/markadebartolo/hello-transcriber.git
+cd hello-transcriber
+bash hello/scripts/check.sh
+```
+
+The check runs regression tests, verifies module checksums, and compiles for
+Apple silicon and Intel. Open `hello/Hello.xcodeproj`, choose the **Hello**
+scheme, and select your own signing team for local development. Use your own
+OpenAI API key to test live dictation.
+
+## Report a problem
+
+Open an issue with the steps to reproduce, your macOS version and hardware, the
+Hello version and build, and the destination app and version when relevant. For
+build issues, include your Xcode version. Use disposable text and keep
+transcripts, screenshots of sensitive fields, and API keys out of reports.
+
+## Submit a change
 
 Use a feature/fix branch and a pull request. Run `bash hello/scripts/check.sh`.
 Meaningful regressions belong at the capture/provider boundary (cancelled startup,
@@ -20,5 +43,5 @@ and attribution. Do not remove third-party notices. Keep the no-Return/Send,
 secure-field exclusion and Copy fallback invariants. Punctuation proposals require
 human review; do not claim token equality guarantees meaning.
 
-CI is compile/test-only. Maintainers perform the signed Mac checks and release gates
-in hello/RELEASING.md. Never mark a manual check passed based only on code inspection.
+CI runs compile and regression checks. The [signed Mac checks](hello/SMOKE_TEST.md)
+and [release procedure](hello/RELEASING.md) cover device testing and publication.

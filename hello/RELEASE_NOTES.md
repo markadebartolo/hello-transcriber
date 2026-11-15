@@ -52,9 +52,22 @@ Requires macOS 14.2+. Optional cleanup needs macOS 26+ and an available Apple
 Intelligence model. Apple Speech preview and fallback require on-device support; OpenAI processes
 the final dictation audio remotely. See PRIVACY.md.
 
-Validation recorded so far: local Xcode 27.2 universal compile on macOS 27.3;
-24 cleanup-policy cases and 12 injected lifecycle/audio-callback/live-partial regression scenarios,
-plus local spelling inference, replacement and storage cases. Physical
-minimum-OS and Intel microphone behavior is not implied by compilation. Signed
-smoke, notarization and exact-download results must accompany any published binary;
-this candidate's scripts refuse publication until those gates pass.
+## Verified on each build
+
+- **Build 29 (this release):** On macOS 27.3, Hello showed microphone access as
+  **Not allowed** after revocation. **Set up microphone** opened the correct
+  System Settings pane, and the dashboard returned to **Allowed** after access
+  was restored. The universal local build and macOS 15 and 26 CI passed. Apple
+  accepted notarization. The exact GitHub ZIP matched its SHA-256 checksum.
+  The extracted app launched and passed Developer ID, stapled ticket, and
+  Gatekeeper checks. The Sparkle feed and archive signatures verified.
+- **Build 28:** The maintainer verified live dictation, punctuation and formatting,
+  TextEdit selection replacement, Escape cancellation, and clipboard fallback
+  when changing windows. Safari accepted dictation in a regular text field and
+  left a focused password field empty. The TextEdit and Safari tests were
+  performed on the exact build 28 download. These interactive dictation tests
+  were not repeated on build 29.
+
+The matching source tag is [hello-v0.1.2](https://github.com/markadebartolo/hello-transcriber/tree/hello-v0.1.2)
+at commit `e452d3a298596fc594307aaff0ce057522495a0d`. Download the ZIP and
+`SHA256SUMS` from the assets below, then run `shasum -a 256 -c SHA256SUMS`.

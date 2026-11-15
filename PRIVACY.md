@@ -1,9 +1,15 @@
 # Privacy
 
-Hello captures microphone audio only during an explicit push-to-talk session.
-There is no always-listening product mode, telemetry, account, license server,
-private Dorsal service, or embedded API credential. Optional form filling captures
-a single foreground-window screenshot after an explicit dictation when enabled.
+Hello captures microphone audio during push-to-talk sessions. It uses your own
+provider keys from macOS Keychain. Hello has no telemetry, sign-in, or transcript history.
+
+| Feature | Data sent off this Mac |
+| --- | --- |
+| Dictation | The completed microphone recording goes to OpenAI after release. The destination draft stays on this Mac. |
+| Live captions and local fallback | Apple Speech runs on-device when supported. |
+| Optional Form Filling | The transcript, eligible field labels and positions, and one screenshot of the active window go to the selected provider. OpenAI still handles the separate audio transcription request. |
+| Activity and personal spellings | Counts and approved spelling pairs stay on this Mac. |
+| Software updates | Sparkle requests the signed release feed from GitHub. |
 
 If Speech Recognition is allowed and a compatible local recognizer exists,
 Hello uses Apple's Speech framework for provisional words and a possible local
@@ -45,9 +51,9 @@ the transcript available for manual Copy; it does not automatically replace the
 clipboard. Cancel or a context change stops verification.
 
 Input Monitoring/listen-only event taps detect shortcut transitions, Escape and
-interactions that invalidate a destination; Hello does not store keystrokes. It
-requests Screen Recording only when you enable the optional form feature. It never
-requests Camera, contacts, location or Automation access.
+interactions that invalidate a destination. Hello does not store keystrokes.
+Use **Allow form filling screenshots** to request Screen Recording for Form Filling.
+Hello never requests Camera, contacts, location or Automation access.
 
 The Dashboard counts words and completed nonempty dictations by local calendar
 day. Only numeric totals and their dates are saved to this Mac's Hello preferences.
@@ -98,9 +104,9 @@ and a screenshot of the original active window to the selected provider:
 - OpenRouter: `https://openrouter.ai/api/v1/responses` (`openai/gpt-4.1-mini`),
   which also sends the payload to its routed model provider.
 
-No microphone audio is sent to these services by this feature. Switching services
-turns form filling off and cancels any session; enable it again to consent to the
-new recipient. Hello does not fail over between these configured services. The screenshot may include
+The form request uses the completed transcript. Switching services turns form
+filling off and cancels any session. Enable it again to consent to the new
+recipient. Hello does not fail over between these configured services. The screenshot may include
 other page text, names, contact details or confidential content. Decide whether a
 window is appropriate to share before using this mode. It does not capture the
 whole desktop, but it is **not a redaction system**. Detected secure fields or Secure
@@ -133,11 +139,10 @@ state stay in process memory; preview values are cleared with Clear/cancel/quit.
 Each service has a separate local Keychain generic password, available only while the
 Mac is unlocked, without iCloud synchronization. It is never embedded in builds or
 saved to preferences. Use **Remove key** in Hello to delete it; deleting the app
-alone does not remove a Keychain entry. The secure entry field clears after saving or changing provider. The saved OpenAI
-key namespace is preserved across this upgrade; no re-entry is needed. The selected
-provider name is a local preference. No maintainer key ships with Hello.
-Normal dictation requires an OpenAI key. Local punctuation cleanup uses the
-on-device Foundation Models framework without a key.
+alone does not remove a Keychain entry. The secure entry field clears after saving
+or changing provider. Dictation and OpenAI Form Filling share the same saved
+OpenAI key. The selected form provider is a local preference. Local punctuation
+review uses the on-device Foundation Models framework without a key.
 
 Form mode sets an empty field's AX value without selecting it, rather than changing
 focus or synthesizing keys. Multi-field writes are not atomic. Hello stops on any
