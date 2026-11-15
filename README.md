@@ -6,11 +6,11 @@ original supported text field or copies the transcript to your clipboard. Option
 form filling can map a single dictation to one or several empty fields without
 selecting them first.
 
-**Notarized release candidate:** Apple accepted version 0.1.0, build 18 on
-November 14, 2026. Its ticket is stapled, its signature verifies, and Gatekeeper
-accepts it as Notarized Developer ID. Local checks and macOS CI passed. A public
-release still requires the remaining signed-device functionality tests and
-verification of the exact downloaded artifact. See [validation](VALIDATION.md).
+**Notarized release candidate:** Apple accepted version 0.1.1, build 28 on
+November 14, 2026. The signature, stapled ticket, and Gatekeeper checks passed,
+as did the local universal build and regression suite. The maintainer confirmed
+live dictation and the punctuation and formatting fix on this build. See
+[validation](VALIDATION.md) for the checks still pending before publication.
 
 ## Install
 
@@ -114,7 +114,7 @@ If you also use OpenAI for forms, allow the Responses endpoint.
 
 Hello buffers audio in memory while you hold the shortcut and sends it to
 OpenAI’s [transcription API](https://developers.openai.com/api/docs/guides/speech-to-text)
-on release. The model returns words and punctuation. Apple Speech provides an
+on release. This version uses `gpt-transcribe` for final dictation. Apple Speech provides an
 optional live preview on this Mac when permission and a local recognizer are
 available. If OpenAI reports an error, Hello can insert the completed on-device
 Apple result and shows the reason for falling back. If no local result is
@@ -186,6 +186,9 @@ and transcript:
 | OpenAI | Responses API · `gpt-4.1-mini` |
 | Anthropic | Messages API · `claude-sonnet-4-5` |
 | OpenRouter | Responses API · `openai/gpt-4.1-mini` |
+
+Choose the service under **Form Filling** to use its listed model. Hello
+currently has no separate model picker for dictation or form filling.
 
 Use an ordinary inference key, never an administration key. For OpenAI, use a
 restricted key with access to the Responses endpoint for forms. Allow the audio
