@@ -57,14 +57,19 @@ final class HelloUpdates: ObservableObject {
         startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
 
     @Published private(set) var canCheck = false
-    @Published private(set) var automaticChecks = false
+    @Published var automaticChecks = false {
+        didSet {
+            if updater.updater.automaticallyChecksForUpdates != automaticChecks {
+                updater.updater.automaticallyChecksForUpdates = automaticChecks
+            }
+        }
+    }
 
     func start() {
         updater.startUpdater()
         updater.updater.publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheck)
-        updater.updater.publisher(for: \.automaticallyChecksForUpdates)
-            .assign(to: &$automaticChecks)
+        automaticChecks = updater.updater.automaticallyChecksForUpdates
     }
 
     func check() {
@@ -72,9 +77,6 @@ final class HelloUpdates: ObservableObject {
         updater.checkForUpdates(nil)
     }
 
-    func setAutomaticChecks(_ enabled: Bool) {
-        updater.updater.automaticallyChecksForUpdates = enabled
-    }
 }
 
 @MainActor
@@ -168,8 +170,7 @@ private struct HelloPanel: View {
                 Text("Hello \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Toggle("Automatic update checks", isOn: Binding(
-                    get: { updates.automaticChecks }, set: updates.setAutomaticChecks))
+                Toggle("Automatic update checks", isOn: $updates.automaticChecks)
                     .font(.caption)
                 Button("Check for Updates…", action: updates.check)
                     .disabled(!updates.canCheck || controller.isBusy)
