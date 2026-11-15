@@ -117,7 +117,8 @@ private struct HelloRecordingStatus: View {
         switch controller.recordingFeedback.phase {
         case .starting: return "Starting…"
         case .stopped: return "Stopped"
-        case .result: return controller.resultMessage
+        case .result:
+            return controller.speechFallbackMessage.isEmpty ? controller.resultMessage : "Apple Speech fallback"
         default: return controller.recordingFeedback.title
         }
     }

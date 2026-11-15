@@ -1,7 +1,7 @@
 {
   "leanring-buddy/BuddyDictationManager.swift": "dfaa88cffcf4ca23d86e8e86712f7ba5ca8c6beff3625b63a9f681559ab40f7c",
   "leanring-buddy/BuddyTranscriptionProvider.swift": "12eda89787acd2ec97e79a982170eb629701fdf5add372d5279fd17f030ad09e",
-  "leanring-buddy/AppleSpeechTranscriptionProvider.swift": "fcd4ce727888890cb468f169719d68427f72c9cde7f486c65f7549bce84323e1",
+  "leanring-buddy/AppleSpeechTranscriptionProvider.swift": "945d7963242f640a461cff62b86ed52060c87ed89a9a7151b3a15b1a03049bac",
   "leanring-buddy/GlobalPushToTalkShortcutMonitor.swift": "81fd8a852685234d209637dce9f4ddecf6e8bf2de5f9a04263d3eb78c154693b",
   "leanring-buddy/OnDeviceModel.swift": "77a0ed797eed8e0a12f3f91cb7c7f53a3efa5d380efca41de05588dd3e10e232",
   "leanring-buddy/DorsalLog.swift": "3057d3fdab5f0d545448601db3168719841c98d2fbd9800d32f3306d2982622b"

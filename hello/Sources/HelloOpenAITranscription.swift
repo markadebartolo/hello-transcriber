@@ -8,6 +8,9 @@ struct HelloOpenAITranscriptionError: LocalizedError {
 
 struct HelloOpenAITranscriptionProvider: BuddyTranscriptionProvider {
     let readKey: () -> String?
+    var allowsApplePreview = false
+    var onApplePreview: @Sendable (String) -> Void = { _ in }
+    var onAppleFallback: @Sendable (String) -> Void = { _ in }
     let displayName = "OpenAI"
     let requiresSpeechRecognitionPermission = false
     let isConfigured = true
@@ -22,15 +25,59 @@ struct HelloOpenAITranscriptionProvider: BuddyTranscriptionProvider {
         guard let key = readKey() else {
             throw HelloOpenAITranscriptionError(message: "Add your OpenAI API key in Dictation settings.")
         }
-        return HelloOpenAIAudioSession(apiKey: key, onFinal: onFinalTranscriptReady, onError: onError)
+        let appleResult = HelloLocalSpeechResult()
+        let appleSession: (any BuddyStreamingTranscriptionSession)?
+        if allowsApplePreview {
+            appleSession = try? await AppleSpeechTranscriptionProvider(requireOnDevice: true).startStreamingSession(
+                keyterms: keyterms, onTranscriptUpdate: onApplePreview,
+                onFinalTranscriptReady: { appleResult.finish($0) }, onError: { _ in appleResult.finish(nil) })
+        } else {
+            appleSession = nil
+        }
+        return HelloOpenAIAudioSession(apiKey: key, appleSession: appleSession,
+            appleResult: appleResult, onFallback: onAppleFallback,
+            onFinal: onFinalTranscriptReady, onError: onError)
+    }
+}
+
+/// Only a completed Apple result is eligible for fallback. Partial captions
+/// have a separate display callback and are never a final candidate.
+final class HelloLocalSpeechResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var completed = false
+    private var text: String?
+
+    func finish(_ text: String?) {
+        lock.withLock {
+            guard !completed else { return }
+            self.text = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            completed = true
+        }
+    }
+
+    func fallback() async throws -> String? {
+        for _ in 0..<20 {
+            try Task.checkCancellation()
+            let snapshot = lock.withLock { (completed, text) }
+            if snapshot.0 {
+                guard let value = snapshot.1, !value.isEmpty else { return nil }
+                return value
+            }
+            try await Task.sleep(for: .milliseconds(90))
+        }
+        return nil
     }
 }
 
 /// Buffers the recording in memory and sends it when the user releases the keys.
-private final class HelloOpenAIAudioSession: BuddyStreamingTranscriptionSession, @unchecked Sendable {
+final class HelloOpenAIAudioSession: BuddyStreamingTranscriptionSession, @unchecked Sendable {
     let finalTranscriptFallbackDelaySeconds: TimeInterval = 35
     private let lock = NSLock()
     private let apiKey: String
+    private let appleSession: (any BuddyStreamingTranscriptionSession)?
+    private let appleResult: HelloLocalSpeechResult
+    private let transcribe: @Sendable (Data, String) async throws -> String
+    private let onFallback: @Sendable (String) -> Void
     private let onFinal: @Sendable (String) -> Void
     private let onError: @Sendable (Error) -> Void
     private var sampleRate: UInt32?
@@ -41,14 +88,23 @@ private final class HelloOpenAIAudioSession: BuddyStreamingTranscriptionSession,
     private var cancelled = false
     private var request: Task<Void, Never>?
 
-    init(apiKey: String, onFinal: @escaping @Sendable (String) -> Void,
-         onError: @escaping @Sendable (Error) -> Void) {
+    init(apiKey: String, appleSession: (any BuddyStreamingTranscriptionSession)?,
+         appleResult: HelloLocalSpeechResult, onFallback: @escaping @Sendable (String) -> Void,
+         onFinal: @escaping @Sendable (String) -> Void, onError: @escaping @Sendable (Error) -> Void,
+         transcribe: @escaping @Sendable (Data, String) async throws -> String = {
+             try await HelloOpenAITranscriptionClient.transcribe(wav: $0, key: $1)
+         }) {
         self.apiKey = apiKey
+        self.appleSession = appleSession
+        self.appleResult = appleResult
+        self.transcribe = transcribe
+        self.onFallback = onFallback
         self.onFinal = onFinal
         self.onError = onError
     }
 
     func appendAudioBuffer(_ audioBuffer: AVAudioPCMBuffer) {
+        appleSession?.appendAudioBuffer(audioBuffer)
         lock.withLock {
             guard !stopped, !cancelled, !invalidFormat else { return }
             let rate = audioBuffer.format.sampleRate
@@ -83,6 +139,7 @@ private final class HelloOpenAIAudioSession: BuddyStreamingTranscriptionSession,
         lock.withLock {
             guard !stopped, !cancelled else { return }
             stopped = true
+            appleSession?.requestFinalTranscript()
             let audio = pcm
             pcm = Data()
             if invalidFormat {
@@ -93,23 +150,30 @@ private final class HelloOpenAIAudioSession: BuddyStreamingTranscriptionSession,
                 onFinal("")
                 return
             }
-            request = Task.detached { [weak self, apiKey] in
+            let mayFallBack = appleSession != nil
+            request = Task.detached { [weak self, apiKey, appleResult, transcribe] in
                 do {
                     try Task.checkCancellation()
                     let wav = HelloOpenAITranscriptionClient.wav(pcm: audio, sampleRate: sampleRate)
-                    let text = try await HelloOpenAITranscriptionClient.transcribe(wav: wav, key: apiKey)
+                    let text = try await transcribe(wav, apiKey)
                     try Task.checkCancellation()
                     self?.finish(.success(text))
                 } catch is CancellationError {
                     // The manager has already invalidated this recording.
                 } catch {
-                    self?.finish(.failure(error))
+                    if mayFallBack, let fallback = try? await appleResult.fallback(), !Task.isCancelled {
+                        let reason = (error as? LocalizedError)?.errorDescription ?? "OpenAI transcription failed."
+                        self?.finish(.success(fallback), fallbackReason: reason)
+                    } else if !Task.isCancelled {
+                        self?.finish(.failure(error))
+                    }
                 }
             }
         }
     }
 
     func cancel() {
+        appleSession?.cancel()
         lock.withLock {
             cancelled = true
             pcm = Data()
@@ -118,12 +182,14 @@ private final class HelloOpenAIAudioSession: BuddyStreamingTranscriptionSession,
         }
     }
 
-    private func finish(_ result: Result<String, Error>) {
+    private func finish(_ result: Result<String, Error>, fallbackReason: String? = nil) {
         lock.withLock {
             guard !cancelled else { return }
             request = nil
             switch result {
-            case .success(let text): onFinal(text)
+            case .success(let text):
+                if let fallbackReason { onFallback(fallbackReason) }
+                onFinal(text)
             case .failure(let error): onError(error)
             }
         }

@@ -5,26 +5,20 @@ There is no always-listening product mode, telemetry, account, license server,
 private Dorsal service, or embedded API credential. Optional form filling captures
 a single foreground-window screenshot after an explicit dictation when enabled.
 
-By default, audio buffers go to Apple's Speech framework. Hello sets
-[`requiresOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognitionrequest/requiresondevicerecognition)
-when the selected recognizer reports
-[`supportsOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognizer/supportsondevicerecognition).
-When on-device recognition is unsupported, Apple may receive audio for processing;
-network access/service availability may be required. When on-device recognition is
-required but fails, Hello reports a failure rather than silently retrying remotely.
-The recognition language follows the Mac's locale, with en-US as a fallback when
-no recognizer can be constructed. Locale support does not guarantee availability.
-Apple controls its service's handling/retention; Hello does not make a claim that
-Apple stores nothing. Speech authorization is required even for on-device requests.
-See [Apple's authorization documentation](https://developer.apple.com/documentation/speech/asking-permission-to-use-speech-recognition).
+If Speech Recognition is allowed and a compatible local recognizer exists,
+Hello uses Apple's Speech framework for provisional words and a possible local
+fallback. It requires on-device recognition for that path. If no local
+recognizer is available, the waveform can still show while you record. Apple
+Speech authorization is optional and never enables remote Apple processing.
 
-Selecting **OpenAI** in Dictation sends the completed recording from memory
-to the OpenAI audio transcription endpoint over HTTPS. This uses your OpenAI
-Keychain key and can incur charges. Only the microphone recording is sent for
-speech recognition. The destination draft and screenshots are excluded from that
-request. Cancel before release to discard the recording without submitting it.
-After release, cancelling stops local processing but cannot recall data already
-sent. No automatic retry to another provider is made. See
+Enabling **OpenAI transcription** in Dictation sends the completed recording in
+memory to the OpenAI audio transcription endpoint over HTTPS. This uses your
+OpenAI Keychain key and can incur charges. Only the microphone recording is
+sent for transcription. The destination draft and screenshots are excluded.
+Cancel before release to discard the recording without submitting it. After
+release, cancelling stops local processing but cannot recall data already sent.
+If OpenAI fails, Hello can use a completed on-device Apple result. It reports
+the failure and does not submit the same audio to another server. See
 [OpenAI’s API data controls](https://developers.openai.com/api/docs/guides/your-data).
 
 Optional punctuation cleanup runs through the on-device

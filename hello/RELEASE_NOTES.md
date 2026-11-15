@@ -10,10 +10,10 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   access on the Form Filling tab.
 - Successive ChatGPT dictations get spaces and conservative terminal punctuation
   at the end of the draft. Existing text is preserved.
-- Optional OpenAI audio transcription with a personal API key. Audio is sent
-  on release and the model returns punctuated text. Apple Speech remains the
-  default and continues to offer live word previews.
-- Hold Control + Option to dictate using Apple Speech; release to finish.
+- OpenAI transcribes and punctuates dictation after release using your API key.
+  On-device Apple Speech shows live provisional words and can provide a
+  completed fallback if OpenAI fails. Hello reports the reason for falling back.
+- Hold Control + Option to speak and release to transcribe.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.
 - A small preview above the waveform shows up to three provisional words in the
@@ -48,8 +48,8 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   remote usage tracking, embedded credentials or transcript history.
 
 Requires macOS 14.2+. Optional cleanup needs macOS 26+ and an available Apple
-Intelligence model. Apple Speech requests on-device processing where supported;
-otherwise Apple may process audio remotely. See PRIVACY.md.
+Intelligence model. Apple Speech preview and fallback require on-device support; OpenAI processes
+the final dictation audio remotely. See PRIVACY.md.
 
 Validation recorded so far: local Xcode 27.2 universal compile on macOS 27.3;
 24 cleanup-policy cases and 12 injected lifecycle/audio-callback/live-partial regression scenarios,

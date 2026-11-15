@@ -111,8 +111,11 @@ compilation are not claims of physical runtime testing on those systems.
 - With a disposable test recording and an authorized OpenAI key, select OpenAI
   under Dictation. Confirm the waveform while holding, a punctuated transcript
   after release, and no Apple Speech permission requirement in this mode.
+  With local Apple Speech permission, confirm the live preview appears while
+  held and the OpenAI result wins on success. With an invalid test key, confirm
+  a completed local result inserts once and shows the actionable OpenAI error.
+  Disable local preview for the same test and check that no text is inserted.
   Verify missing key, network failure and cancellation preserve the draft.
-  Switch back to Apple Speech and confirm its live words still work.
 - In the ChatGPT composer, dictate two separate sentences with the caret at the
   end. Check spacing, punctuation, preserved existing content and no submission.
   Then replace a selection and insert in the middle of a sentence. Verify those

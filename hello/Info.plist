@@ -4,7 +4,7 @@
     <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
     <key>LSUIElement</key><true/>
     <key>NSMicrophoneUsageDescription</key><string>Hello captures your voice while you hold Control and Option, then turns it into text.</string>
-    <key>NSSpeechRecognitionUsageDescription</key><string>Hello uses Apple Speech to transcribe your voice. Recognition runs on this Mac when supported; otherwise Apple may process the audio.</string>
+    <key>NSSpeechRecognitionUsageDescription</key><string>Optional on-device Apple Speech shows live words and can provide a local transcript if OpenAI fails.</string>
     <key>SUFeedURL</key><string>https://github.com/markadebartolo/hello-transcriber/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key><string>Tbzes4QNDjm/9Nc3qVYMUD2aAz+i5rmJgHK6eHu8SLs=</string>
     <key>SUVerifyUpdateBeforeExtraction</key><true/>

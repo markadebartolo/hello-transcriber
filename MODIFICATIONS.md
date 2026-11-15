@@ -205,13 +205,14 @@ transcript. Form filling remains separately opt-in and off at launch.
 
 Hello can select the provider while the dictation manager is idle. The
 shared manager change retains its generation, cancellation and microphone
-lifecycle. Apple Speech stays the standalone default. The OpenAI provider
+lifecycle. Apple Speech provides an on-device preview and a fallback after an OpenAI
+failure. The OpenAI provider
 holds a bounded mono WAV recording in memory, requests transcription only after
 release, rejects redirects and reports network or authorization failure without
-sending the recording to a different provider. The key stays in Keychain until a
+sending the recording to a different server. The key stays in Keychain until a
 session needs it. No destination draft or screenshot enters the transcription
 request. The original source provenance stays unchanged and the current
-manager checksum was refreshed.
+manager and Apple preview checksums were refreshed.
 
 ChatGPT end-of-draft insertion adds a spacing boundary and conservative terminal
 punctuation to the inserted chunk only. Existing draft content, selected-text

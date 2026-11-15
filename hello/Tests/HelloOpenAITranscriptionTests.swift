@@ -5,11 +5,21 @@ private final class SpeechProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var finals: [String] = []
     private var errors = 0
+    private var notices: [String] = []
 
     func final(_ value: String) { lock.withLock { finals.append(value) } }
     func fail() { lock.withLock { errors += 1 } }
     var results: [String] { lock.withLock { finals } }
     var errorCount: Int { lock.withLock { errors } }
+    func fallback(_ reason: String) { lock.withLock { notices.append(reason) } }
+    var fallbackNotices: [String] { lock.withLock { notices } }
+}
+
+private final class TestAppleSession: BuddyStreamingTranscriptionSession {
+    let finalTranscriptFallbackDelaySeconds: TimeInterval = 1
+    func appendAudioBuffer(_ audioBuffer: AVAudioPCMBuffer) {}
+    func requestFinalTranscript() {}
+    func cancel() {}
 }
 
 @main
@@ -60,6 +70,47 @@ struct HelloOpenAITranscriptionTests {
                 onFinalTranscriptReady: { probe.final($0) }, onError: { _ in probe.fail() })
             preconditionFailure("A missing key must not start recording")
         } catch is HelloOpenAITranscriptionError {}
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let signal = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 2000)!
+        signal.frameLength = 2000
+        signal.floatChannelData!.pointee.update(repeating: 0.1, count: 2000)
+        let appleResult = HelloLocalSpeechResult()
+        appleResult.finish("Apple completed words.")
+        let successProbe = SpeechProbe()
+        let cloudSuccess = HelloOpenAIAudioSession(apiKey: "fixture-key", appleSession: TestAppleSession(),
+            appleResult: appleResult, onFallback: { successProbe.fallback($0) },
+            onFinal: { successProbe.final($0) }, onError: { _ in successProbe.fail() },
+            transcribe: { wav, _ in
+                precondition(wav.count == 4044)
+                return "OpenAI final words."
+            })
+        cloudSuccess.appendAudioBuffer(signal)
+        cloudSuccess.requestFinalTranscript()
+        for _ in 0..<100 where successProbe.results.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(successProbe.results == ["OpenAI final words."] && successProbe.fallbackNotices.isEmpty)
+
+        let failureProbe = SpeechProbe()
+        let cloudFailure = HelloOpenAIAudioSession(apiKey: "fixture-key", appleSession: TestAppleSession(),
+            appleResult: appleResult, onFallback: { failureProbe.fallback($0) },
+            onFinal: { failureProbe.final($0) }, onError: { _ in failureProbe.fail() },
+            transcribe: { _, _ in throw HelloOpenAITranscriptionError(message: "Check your OpenAI key.") })
+        cloudFailure.appendAudioBuffer(signal)
+        cloudFailure.requestFinalTranscript()
+        for _ in 0..<100 where failureProbe.results.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(failureProbe.results == ["Apple completed words."] && failureProbe.fallbackNotices == ["Check your OpenAI key."])
+
+        let noFallbackProbe = SpeechProbe()
+        let noApple = HelloLocalSpeechResult()
+        noApple.finish(nil)
+        let noFallback = HelloOpenAIAudioSession(apiKey: "fixture-key", appleSession: TestAppleSession(),
+            appleResult: noApple, onFallback: { noFallbackProbe.fallback($0) },
+            onFinal: { noFallbackProbe.final($0) }, onError: { _ in noFallbackProbe.fail() },
+            transcribe: { _, _ in throw HelloOpenAITranscriptionError(message: "Network error.") })
+        noFallback.appendAudioBuffer(signal)
+        noFallback.requestFinalTranscript()
+        for _ in 0..<100 where noFallbackProbe.errorCount == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        precondition(noFallbackProbe.errorCount == 1 && noFallbackProbe.results.isEmpty)
+        print("OpenAI final text takes priority and Apple fallback requires a completed result and reports the failure")
         print("Hello OpenAI speech: WAV, request privacy, response errors, missing key, silence and cancellation passed (fixtures only)")
     }
 }

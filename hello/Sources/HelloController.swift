@@ -57,6 +57,8 @@ final class HelloController: ObservableObject {
         didSet { UserDefaults.standard.set(usesOpenAITranscription, forKey: "Hello.openAITranscription") }
     }
     @Published private(set) var speechKeyStatus = ""
+    @Published private(set) var speechFallbackMessage = ""
+    @Published private var provisionalTranscript = ""
     @Published var cleanPunctuation = false
 
     private var subscriptions = Set<AnyCancellable>()
@@ -88,10 +90,11 @@ final class HelloController: ObservableObject {
         if isRequestingPermissions { return "Waiting for permission…" }
         if dictation.isPreparingToRecord { return "Starting microphone…" }
         if dictation.isActivelyRecordingAudio { return "Listening — release to finish" }
-        if dictation.isFinalizingTranscript { return "Transcribing…" }
+        if dictation.isFinalizingTranscript { return "Transcribing with OpenAI…" }
         if isProcessingTranscript {
             return sessionUsesForms ? "Matching your words to the form…" : cleanPunctuation ? "Tidying punctuation…" : "Inserting…"
         }
+        if !usesOpenAITranscription { return "Enable OpenAI transcription in Dictation to get started." }
         return dictation.lastErrorMessage ?? resultMessage
     }
 
@@ -99,7 +102,8 @@ final class HelloController: ObservableObject {
     var liveCaption: String {
         switch recordingFeedback.phase {
         case .hidden, .result: return ""
-        case .starting, .listening, .transcribing: return transcript
+        case .starting, .listening: return provisionalTranscript
+        case .transcribing: return ""
         case .processing, .stopped:
             return originalTranscript.isEmpty ? transcript : originalTranscript
         }
@@ -108,6 +112,10 @@ final class HelloController: ObservableObject {
     init() {
         spellingMemory.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
         dictation.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
+        dictation.$lastErrorMessage.sink { [weak self] error in
+            guard error != nil, let self, self.usesOpenAITranscription else { return }
+            self.announceResult("Transcription failed")
+        }.store(in: &subscriptions)
         shortcutMonitor.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &subscriptions)
         shortcutMonitor.shortcutTransitionPublisher.sink { [weak self] transition in
             switch transition {
@@ -138,7 +146,7 @@ final class HelloController: ObservableObject {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled, let self else { return }
                 self.refreshShortcut()
-                if self.dictation.isDictationInProgress && (!self.microphoneReady || (!self.usesOpenAITranscription && !self.speechReady)) {
+                if self.dictation.isDictationInProgress && !self.microphoneReady {
                     self.cancel()
                 }
             }
@@ -277,10 +285,12 @@ final class HelloController: ObservableObject {
     private func startRecording() {
         guard !isBusy else { return }
         stopSpellingObservation()
-        guard microphoneReady, usesOpenAITranscription || speechReady else {
-            resultMessage = usesOpenAITranscription
-                ? "Open Hello and allow microphone access."
-                : "Open Hello and allow microphone and speech recognition access."
+        guard usesOpenAITranscription else {
+            resultMessage = "Enable OpenAI transcription in Dictation to get started."
+            return
+        }
+        guard microphoneReady else {
+            resultMessage = "Open Hello and allow microphone access."
             return
         }
         let missingFormAccess = HelloFormPrerequisites.missing(enabled: formMode,
@@ -294,15 +304,26 @@ final class HelloController: ObservableObject {
             resultMessage = "Add your \(formProvider.displayName) API key in Hello first."
             return
         }
-        if usesOpenAITranscription {
-            dictation.configureTranscriptionProvider(
-                HelloOpenAITranscriptionProvider(readKey: { HelloAPIKey.read(for: .openAI) }))
-        } else {
-            dictation.configureTranscriptionProvider(AppleSpeechTranscriptionProvider())
-        }
         dismissResult()
         let identifier = UUID()
         sessionIdentifier = identifier
+        provisionalTranscript = ""
+        speechFallbackMessage = ""
+        dictation.configureTranscriptionProvider(HelloOpenAITranscriptionProvider(
+            readKey: { HelloAPIKey.read(for: .openAI) },
+            allowsApplePreview: speechReady,
+            onApplePreview: { [weak self] text in
+                Task { @MainActor in
+                    guard let self, sessionIdentifier == identifier, dictation.isActivelyRecordingAudio else { return }
+                    provisionalTranscript = text
+                }
+            },
+            onAppleFallback: { [weak self] reason in
+                Task { @MainActor in
+                    guard let self, sessionIdentifier == identifier else { return }
+                    speechFallbackMessage = "Used on-device Apple Speech. \(reason)"
+                }
+            }))
         contextIdentifier = UUID()
         sessionUsesForms = formMode
         sessionSpellings = spellingMemoryEnabled && !formMode ? spellingMemory.entries : []
@@ -345,6 +366,7 @@ final class HelloController: ObservableObject {
     }
 
     private func finishRecording() {
+        provisionalTranscript = ""
         recordingTask?.cancel()
         recordingTask = nil
         dictation.stopPushToTalkFromKeyboardShortcut()
@@ -523,6 +545,7 @@ final class HelloController: ObservableObject {
     }
 
     func clearTranscript() {
+        speechFallbackMessage = ""
         cancel()
         transcript = ""
         originalTranscript = ""
@@ -530,6 +553,8 @@ final class HelloController: ObservableObject {
     }
 
     func cancel() {
+        provisionalTranscript = ""
+        speechFallbackMessage = ""
         stopSpellingObservation(clearSuggestion: true)
         insertionMessage = ""
         dismissResult()
