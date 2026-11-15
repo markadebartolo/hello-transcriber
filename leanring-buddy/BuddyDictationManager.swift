@@ -317,18 +317,10 @@ final class BuddyDictationManager: NSObject, ObservableObject {
     }
 
     private let transcriptionProvider: any BuddyTranscriptionProvider
-    private let audioEngine = AVAudioEngine()
+    private let audioCapture: any BuddyAudioCapture
+    private let permissionCheck: (@MainActor () async -> Bool)?
     private var activeTranscriptionSession: (any BuddyStreamingTranscriptionSession)?
-    /// Microphone audio captured between key-down and the transcription session
-    /// actually going live. We start the mic BEFORE the network-bound provider
-    /// handshake (token fetch + websocket "Begin"), so the user's first words
-    /// land here and are flushed, in capture order, the moment the session is
-    /// ready. Without this hold those opening words are dropped while the
-    /// websocket connects. Guarded by `preSessionAudioBufferLock` because the
-    /// audio tap appends from the realtime audio thread.
-    private let preSessionAudioBufferLock = NSLock()
-    private var audioBuffersCapturedBeforeSessionReady: [AVAudioPCMBuffer] = []
-    private var isStreamingSessionReadyForLiveAudio = false
+    private var recordingLimitTask: Task<Void, Never>?
     private var activeStartSource: BuddyDictationStartSource?
     private var draftCallbacks: BuddyDictationDraftCallbacks?
     private var draftTextBeforeCurrentDictation = ""
@@ -343,9 +335,14 @@ final class BuddyDictationManager: NSObject, ObservableObject {
     /// rapid follow-up requests that arrive before macOS updates its cache.
     private var lastPermissionRequestCompletedAt: Date?
 
-    override init() {
-        let transcriptionProvider = BuddyTranscriptionProviderFactory.makeDefaultProvider()
+    init(
+        transcriptionProvider: any BuddyTranscriptionProvider = BuddyTranscriptionProviderFactory.makeDefaultProvider(),
+        audioCapture: any BuddyAudioCapture = BuddyMicrophoneCapture(),
+        permissionCheck: (@MainActor () async -> Bool)? = nil
+    ) {
         self.transcriptionProvider = transcriptionProvider
+        self.audioCapture = audioCapture
+        self.permissionCheck = permissionCheck
         self.transcriptionProviderDisplayName = transcriptionProvider.displayName
         super.init()
     }
@@ -422,8 +419,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             draftCallbacks?.updateDraftText(currentDraftText)
         }
 
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        audioCapture.stop()
         activeTranscriptionSession?.cancel()
 
         resetSessionState()
@@ -436,42 +432,25 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         submitDraftText: @escaping (String) -> Void,
         shouldAutomaticallySubmitFinalDraftOnStop: Bool
     ) async {
-        guard !isDictationInProgress else { return }
-
-        DorsalLog("🎙️ BuddyDictationManager: start requested (\(startSource))")
-
-        if needsInitialPermissionPrompt {
-            DorsalLog("🎙️ BuddyDictationManager: requesting initial permissions")
-            NSApplication.shared.activate(ignoringOtherApps: true)
-
-            do {
-                try await Task.sleep(for: .milliseconds(200))
-            } catch {
-                // If the task is cancelled while the app is being activated,
-                // we can safely continue into the permission request.
-            }
-        }
-
+        guard !Task.isCancelled, !isDictationInProgress else { return }
+        // Claim this generation before any suspension; a cancelled start must never
+        // reset a newer session that began while a permission/provider await resumed.
         let startRequestIdentifier = UUID()
         pendingStartRequestIdentifier = startRequestIdentifier
-
+        activeStartSource = startSource
         lastErrorMessage = nil
         currentPermissionProblem = nil
         isPreparingToRecord = true
 
-        guard await requestMicrophoneAndSpeechPermissionsWithoutDuplicatePrompts() else {
-            DorsalLog("🎙️ BuddyDictationManager: permissions missing or denied")
-            isPreparingToRecord = false
-            return
+        let hasPermissions: Bool
+        if let permissionCheck {
+            hasPermissions = await permissionCheck()
+        } else {
+            hasPermissions = await requestMicrophoneAndSpeechPermissionsWithoutDuplicatePrompts()
         }
-        guard !Task.isCancelled else {
-            DorsalLog("🎙️ BuddyDictationManager: start cancelled (shortcut released during permission check)")
-            isPreparingToRecord = false
-            return
-        }
-        guard pendingStartRequestIdentifier == startRequestIdentifier else {
-            DorsalLog("🎙️ BuddyDictationManager: start request superseded")
-            isPreparingToRecord = false
+        guard pendingStartRequestIdentifier == startRequestIdentifier else { return }
+        guard hasPermissions, !Task.isCancelled else {
+            resetSessionState()
             return
         }
 
@@ -504,162 +483,105 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         }
 
         do {
-            try await startRecognitionSession()
+            try await startRecognitionSession(identifier: startRequestIdentifier)
+            guard pendingStartRequestIdentifier == startRequestIdentifier else { return }
             guard !Task.isCancelled else {
-                DorsalLog("🎙️ BuddyDictationManager: start cancelled (shortcut released during session start)")
-                audioEngine.stop()
-                audioEngine.inputNode.removeTap(onBus: 0)
-                activeTranscriptionSession?.cancel()
-                resetSessionState()
+                cancelCurrentDictation(preserveDraftText: false)
                 return
             }
             if startSource == .microphoneButton {
                 microphoneButtonRecordingStartedAt = Date()
             }
             isPreparingToRecord = false
-            DorsalLog("🎙️ BuddyDictationManager: recognition session started")
+            // Bound capture if the OS loses a release event or a speech callback.
+            recordingLimitTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(60))
+                guard !Task.isCancelled, let self,
+                      self.pendingStartRequestIdentifier == startRequestIdentifier else { return }
+                self.stopPushToTalk(expectedStartSource: startSource)
+            }
         } catch {
-            isPreparingToRecord = false
-            lastErrorMessage = userFacingErrorMessage(
-                from: error,
-                fallback: "couldn't start voice input. try again."
-            )
-            DorsalLog("❌ BuddyDictationManager: failed to start recognition session (\(transcriptionProvider.displayName)): \(error)")
-            resetSessionState()
+            guard pendingStartRequestIdentifier == startRequestIdentifier else { return }
+            lastErrorMessage = userFacingErrorMessage(from: error, fallback: "Couldn't start voice input. Try again.")
+            cancelCurrentDictation(preserveDraftText: false)
         }
     }
 
     private func stopPushToTalk(expectedStartSource: BuddyDictationStartSource) {
-        pendingStartRequestIdentifier = UUID()
-
-        guard activeStartSource == expectedStartSource else {
-            isPreparingToRecord = false
+        guard activeStartSource == expectedStartSource else { return }
+        // A quick release during startup discards that attempt, even when its
+        // provider ignores Task cancellation and returns a session later.
+        if isPreparingToRecord {
+            cancelCurrentDictation(preserveDraftText: false)
             return
         }
         guard !isFinalizingTranscript else { return }
-
-        DorsalLog("🎙️ BuddyDictationManager: stop requested (\(expectedStartSource))")
-
         isRecordingFromMicrophoneButton = false
         isRecordingFromKeyboardShortcut = false
+        isRecordingFromAlwaysOn = false
         isFinalizingTranscript = true
-
-        let finalTranscriptFallbackDelaySeconds = activeTranscriptionSession?.finalTranscriptFallbackDelaySeconds
-            ?? Self.defaultFinalTranscriptFallbackDelaySeconds
-
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        recordingLimitTask?.cancel()
+        audioCapture.stop()
         activeTranscriptionSession?.requestFinalTranscript()
-
+        let identifier = pendingStartRequestIdentifier
+        let delay = activeTranscriptionSession?.finalTranscriptFallbackDelaySeconds
+            ?? Self.defaultFinalTranscriptFallbackDelaySeconds
         finalizeFallbackWorkItem?.cancel()
-        let shouldSubmitFinalDraftWhenFallbackTriggers = shouldAutomaticallySubmitFinalDraft
         let fallbackWorkItem = DispatchWorkItem { [weak self] in
             Task { @MainActor in
-                self?.finishCurrentDictationSessionIfNeeded(
-                    shouldSubmitFinalDraft: shouldSubmitFinalDraftWhenFallbackTriggers
+                guard let self, self.pendingStartRequestIdentifier == identifier,
+                      self.isFinalizingTranscript else { return }
+                self.finishCurrentDictationSessionIfNeeded(
+                    shouldSubmitFinalDraft: self.shouldAutomaticallySubmitFinalDraft
                 )
             }
         }
         finalizeFallbackWorkItem = fallbackWorkItem
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + finalTranscriptFallbackDelaySeconds,
-            execute: fallbackWorkItem
-        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: fallbackWorkItem)
     }
 
-    private func startRecognitionSession() async throws {
-        activeTranscriptionSession?.cancel()
-        activeTranscriptionSession = nil
-
-        // Start capturing microphone audio IMMEDIATELY — before the network-bound
-        // provider handshake — so the user's opening words aren't dropped while
-        // the AssemblyAI token fetch + websocket "Begin" are still in flight.
-        // Reset the pre-session hold for this fresh session.
-        preSessionAudioBufferLock.withLock {
-            audioBuffersCapturedBeforeSessionReady.removeAll()
-            isStreamingSessionReadyForLiveAudio = false
-        }
-
-        let inputNode = audioEngine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-
-        inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            guard let self else { return }
-
-            // While the streaming session is still connecting, hold the buffer so
-            // no speech is lost; once it's live, hand audio straight to it.
-            self.preSessionAudioBufferLock.lock()
-            let isSessionReadyForLiveAudio = self.isStreamingSessionReadyForLiveAudio
-            if !isSessionReadyForLiveAudio {
-                self.audioBuffersCapturedBeforeSessionReady.append(buffer)
-            }
-            self.preSessionAudioBufferLock.unlock()
-
-            if isSessionReadyForLiveAudio {
-                self.activeTranscriptionSession?.appendAudioBuffer(buffer)
-            }
-
-            self.updateAudioPowerLevel(from: buffer)
-        }
-
-        audioEngine.prepare()
-        try audioEngine.start()
-
-        DorsalLog("🎙️ BuddyDictationManager: capturing audio, opening transcription provider \(transcriptionProvider.displayName)")
-
-        let activeTranscriptionSession: any BuddyStreamingTranscriptionSession
-        do {
-            activeTranscriptionSession = try await transcriptionProvider.startStreamingSession(
-                keyterms: buildTranscriptionKeyterms(),
-                onTranscriptUpdate: { [weak self] transcriptText in
-                    Task { @MainActor in
-                        self?.latestRecognizedText = transcriptText
-                    }
-                },
-                onFinalTranscriptReady: { [weak self] transcriptText in
-                    Task { @MainActor in
-                        guard let self else { return }
-                        self.latestRecognizedText = transcriptText
-
-                        if self.isFinalizingTranscript {
-                            self.finishCurrentDictationSessionIfNeeded(
-                                shouldSubmitFinalDraft: self.shouldAutomaticallySubmitFinalDraft
-                            )
-                        }
-                    }
-                },
-                onError: { [weak self] error in
-                    Task { @MainActor in
-                        self?.handleRecognitionError(error)
-                    }
+    private func startRecognitionSession(identifier: UUID) async throws {
+        // Apple Speech has no remote provider handshake. Prepare its request before
+        // starting the mic so no borrowed AVAudioEngine buffers escape the tap.
+        let session = try await transcriptionProvider.startStreamingSession(
+            keyterms: buildTranscriptionKeyterms(),
+            onTranscriptUpdate: { [weak self] text in
+                Task { @MainActor in
+                    guard let self, self.pendingStartRequestIdentifier == identifier else { return }
+                    self.latestRecognizedText = text
+                    self.draftCallbacks?.updateDraftText(text)
                 }
-            )
-        } catch {
-            // Setup failed after the engine was already running — tear the
-            // capture back down so we don't leak a hot microphone, then rethrow.
-            audioEngine.stop()
-            audioEngine.inputNode.removeTap(onBus: 0)
-            preSessionAudioBufferLock.withLock {
-                audioBuffersCapturedBeforeSessionReady.removeAll()
-                isStreamingSessionReadyForLiveAudio = false
+            },
+            onFinalTranscriptReady: { [weak self] text in
+                Task { @MainActor in
+                    guard let self, self.pendingStartRequestIdentifier == identifier else { return }
+                    self.latestRecognizedText = text
+                    // Apple may end recognition before key release (service limit).
+                    self.finishCurrentDictationSessionIfNeeded(
+                        shouldSubmitFinalDraft: self.shouldAutomaticallySubmitFinalDraft
+                    )
+                }
+            },
+            onError: { [weak self] error in
+                Task { @MainActor in
+                    guard let self, self.pendingStartRequestIdentifier == identifier else { return }
+                    self.handleRecognitionError(error)
+                }
             }
-            throw error
+        )
+        guard pendingStartRequestIdentifier == identifier, !Task.isCancelled else {
+            session.cancel()
+            return
         }
-
-        self.activeTranscriptionSession = activeTranscriptionSession
-        DorsalLog("🎙️ BuddyDictationManager: provider ready, flushing buffered audio and going live")
-
-        // Flush every buffer captured during setup, in capture order, then flip to
-        // live. Holding the lock across the flush guarantees a freshly captured
-        // buffer can't jump ahead of the held ones — the audio thread briefly
-        // waits on this one-time startup flush.
-        preSessionAudioBufferLock.withLock {
-            for capturedAudioBuffer in audioBuffersCapturedBeforeSessionReady {
-                activeTranscriptionSession.appendAudioBuffer(capturedAudioBuffer)
+        activeTranscriptionSession = session
+        try audioCapture.start { [weak self, session] buffer in
+            session.appendAudioBuffer(buffer)
+            let level = Self.audioPowerLevel(from: buffer)
+            Task { @MainActor in
+                guard let self, self.pendingStartRequestIdentifier == identifier,
+                      self.isActivelyRecordingAudio else { return }
+                self.updateAudioPowerLevel(level)
             }
-            audioBuffersCapturedBeforeSessionReady.removeAll()
-            isStreamingSessionReadyForLiveAudio = true
         }
     }
 
@@ -697,8 +619,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             currentDraftCallbacks?.updateDraftText(finalDraftText)
         }
 
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        audioCapture.stop()
         activeTranscriptionSession?.cancel()
 
         resetSessionState()
@@ -732,6 +653,8 @@ final class BuddyDictationManager: NSObject, ObservableObject {
 
     private func resetSessionState() {
         pendingStartRequestIdentifier = UUID()
+        recordingLimitTask?.cancel()
+        recordingLimitTask = nil
         activeTranscriptionSession = nil
         draftCallbacks = nil
         activeStartSource = nil
@@ -755,30 +678,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
     }
 
     private func buildTranscriptionKeyterms() -> [String] {
-        let baseKeyterms = [
-            "makesomething",
-            "Dorsal",
-            "Codex",
-            // Common-word / brandable app names users launch by voice — biased so the
-            // transcriber renders the proper noun ("open Slack") instead of the everyday
-            // word, the way "Codex" already is. Without this, "Slack" gets heard as plain
-            // "slack" buried in a longer phrase and the open-app request misses.
-            "Slack",
-            "Notion",
-            "Spotify",
-            "Figma",
-            "Obsidian",
-            "Discord",
-            "Cursor",
-            "Claude",
-            "Anthropic",
-            "OpenAI",
-            "SwiftUI",
-            "Xcode",
-            "Vercel",
-            "Next.js",
-            "localhost"
-        ]
+        let baseKeyterms = ["Hello"]
 
         let combinedKeyterms = baseKeyterms
         var uniqueNormalizedKeyterms = Set<String>()
@@ -800,39 +700,19 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         return orderedKeyterms
     }
 
-    private func updateAudioPowerLevel(from audioBuffer: AVAudioPCMBuffer) {
-        guard let channelData = audioBuffer.floatChannelData else { return }
+    nonisolated private static func audioPowerLevel(from buffer: AVAudioPCMBuffer) -> CGFloat {
+        guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
+        var sum: Float = 0
+        for index in 0..<Int(buffer.frameLength) { sum += samples[index] * samples[index] }
+        return CGFloat(min(max(sqrt(sum / Float(buffer.frameLength)) * 10.2, 0), 1))
+    }
 
-        let channelSamples = channelData[0]
-        let frameCount = Int(audioBuffer.frameLength)
-        guard frameCount > 0 else { return }
-
-        var summedSquares: Float = 0
-        for sampleIndex in 0..<frameCount {
-            let sample = channelSamples[sampleIndex]
-            summedSquares += sample * sample
-        }
-
-        let rootMeanSquare = sqrt(summedSquares / Float(frameCount))
-        let boostedLevel = min(max(rootMeanSquare * 10.2, 0), 1)
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-
-            let smoothedAudioPowerLevel = max(
-                CGFloat(boostedLevel),
-                self.currentAudioPowerLevel * 0.72
-            )
-            self.currentAudioPowerLevel = smoothedAudioPowerLevel
-
-            let now = Date()
-            if now.timeIntervalSince(self.lastRecordedAudioPowerSampleDate)
-                >= Self.recordedAudioPowerHistorySampleIntervalSeconds {
-                self.lastRecordedAudioPowerSampleDate = now
-                self.appendRecordedAudioPowerSample(
-                    max(CGFloat(boostedLevel), Self.recordedAudioPowerHistoryBaselineLevel)
-                )
-            }
+    private func updateAudioPowerLevel(_ level: CGFloat) {
+        currentAudioPowerLevel = max(level, currentAudioPowerLevel * 0.72)
+        let now = Date()
+        if now.timeIntervalSince(lastRecordedAudioPowerSampleDate) >= Self.recordedAudioPowerHistorySampleIntervalSeconds {
+            lastRecordedAudioPowerSampleDate = now
+            appendRecordedAudioPowerSample(max(level, Self.recordedAudioPowerHistoryBaselineLevel))
         }
     }
 
@@ -887,8 +767,9 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         // so we trust the cached result for a short window.
         if let lastPermissionRequestCompletedAt,
            Date().timeIntervalSince(lastPermissionRequestCompletedAt) < 1.0 {
-            return AVCaptureDevice.authorizationStatus(for: .audio) != .denied
-                && AVCaptureDevice.authorizationStatus(for: .audio) != .restricted
+            return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+                && (!transcriptionProvider.requiresSpeechRecognitionPermission
+                    || SFSpeechRecognizer.authorizationStatus() == .authorized)
         }
 
         let permissionRequestTask = Task { @MainActor in
@@ -909,10 +790,8 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             currentPermissionProblem = nil
             return true
         case .notDetermined:
-            let isGranted = await withCheckedContinuation { continuation in
-                AVCaptureDevice.requestAccess(for: .audio) { isGranted in
-                    continuation.resume(returning: isGranted)
-                }
+            let isGranted = await BuddyPermissionBridge.request { completion in
+                AVCaptureDevice.requestAccess(for: .audio, completionHandler: completion)
             }
             currentPermissionProblem = isGranted ? nil : .microphoneAccessDenied
             return isGranted
@@ -931,9 +810,9 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             currentPermissionProblem = nil
             return true
         case .notDetermined:
-            let isGranted = await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { authorizationStatus in
-                    continuation.resume(returning: authorizationStatus == .authorized)
+            let isGranted = await BuddyPermissionBridge.request { completion in
+                SFSpeechRecognizer.requestAuthorization { @Sendable status in
+                    completion(status == .authorized)
                 }
             }
             currentPermissionProblem = isGranted ? nil : .speechRecognitionDenied
@@ -978,5 +857,69 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         }
 
         return fallback
+    }
+}
+
+/// Injectable capture boundary for lifecycle tests; production uses the original
+/// AVAudioEngine/input-node tap pipeline. The tap consumes buffers synchronously.
+@MainActor
+protocol BuddyAudioCapture: AnyObject {
+    func start(consume: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws
+    func stop()
+}
+
+@MainActor
+final class BuddyMicrophoneCapture: BuddyAudioCapture {
+    private let engine = AVAudioEngine()
+    private var hasTap = false
+
+    func start(consume: @escaping @Sendable (AVAudioPCMBuffer) -> Void) throws {
+        stop()
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw AppleSpeechTranscriptionProviderError(message: "No microphone is available. Check your audio input in System Settings.")
+        }
+        input.installTap(onBus: 0, bufferSize: 1024, format: format,
+                         block: Self.makeTapHandler(consume: consume))
+        hasTap = true
+        do {
+            engine.prepare()
+            try engine.start()
+        } catch {
+            stop()
+            throw error
+        }
+    }
+
+    func stop() {
+        engine.stop()
+        if hasTap {
+            engine.inputNode.removeTap(onBus: 0)
+            hasTap = false
+        }
+    }
+
+    // AVAudioNodeTapBlock is a legacy non-Sendable SDK callback. Creating it
+    // inline in start() inherits MainActor and traps on the first audio buffer.
+    // Keep the actual production handler explicitly nonisolated and Sendable;
+    // borrowed buffers are consumed synchronously on the audio callback queue.
+    nonisolated static func makeTapHandler(
+        consume: @escaping @Sendable (AVAudioPCMBuffer) -> Void
+    ) -> @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        { buffer, _ in consume(buffer) }
+    }
+}
+
+/// TCC completes on a background queue. Keep callback registration nonisolated
+/// and explicitly Sendable, then resume the awaiting actor via continuation.
+/// Inferring MainActor on a legacy SDK completion can trap at runtime in Swift 6.
+enum BuddyPermissionBridge {
+    static func request<Value: Sendable>(
+        _ register: @Sendable (@escaping @Sendable (Value) -> Void) -> Void
+    ) async -> Value {
+        await withCheckedContinuation { continuation in
+            register { value in continuation.resume(returning: value) }
+        }
     }
 }

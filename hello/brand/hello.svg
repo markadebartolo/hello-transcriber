@@ -1,10 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <rect x="80" y="80" width="864" height="864" rx="206" fill="#2476ed"/>
-  <g fill="#ffffff">
-    <rect x="252" y="424" width="72" height="176" rx="36"/>
-    <rect x="364" y="308" width="72" height="408" rx="36"/>
-    <rect x="476" y="230" width="72" height="564" rx="36"/>
-    <rect x="588" y="348" width="72" height="328" rx="36"/>
-    <rect x="700" y="438" width="72" height="148" rx="36"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Hello: the waveform of hello spoken aloud">
+<title>Hello — the sound of hello</title>
+<defs><linearGradient id="blue" x1="0.3" y1="1" x2="0.7" y2="0"><stop stop-color="#175ce8"/><stop offset="1" stop-color="#2e8fff"/></linearGradient></defs>
+<rect x="80" y="80" width="864" height="864" rx="202" fill="url(#blue)"/>
+<g fill="white"><rect x="195.667" y="504.787" width="14.426" height="14.426" rx="7.213"/>
+<rect x="221.427" y="486.687" width="14.426" height="50.626" rx="7.213"/>
+<rect x="247.187" y="359.304" width="14.426" height="305.392" rx="7.213"/>
+<rect x="272.947" y="289.113" width="14.426" height="445.774" rx="7.213"/>
+<rect x="298.707" y="297.821" width="14.426" height="428.358" rx="7.213"/>
+<rect x="324.467" y="301.171" width="14.426" height="421.657" rx="7.213"/>
+<rect x="350.227" y="303.053" width="14.426" height="417.893" rx="7.213"/>
+<rect x="375.987" y="302.545" width="14.426" height="418.910" rx="7.213"/>
+<rect x="401.747" y="295.412" width="14.426" height="433.175" rx="7.213"/>
+<rect x="427.507" y="285.000" width="14.426" height="454.000" rx="7.213"/>
+<rect x="453.267" y="288.228" width="14.426" height="447.544" rx="7.213"/>
+<rect x="479.027" y="296.459" width="14.426" height="431.082" rx="7.213"/>
+<rect x="504.787" y="309.455" width="14.426" height="405.091" rx="7.213"/>
+<rect x="530.547" y="304.502" width="14.426" height="414.997" rx="7.213"/>
+<rect x="556.307" y="342.642" width="14.426" height="338.716" rx="7.213"/>
+<rect x="582.067" y="337.003" width="14.426" height="349.993" rx="7.213"/>
+<rect x="607.827" y="346.365" width="14.426" height="331.270" rx="7.213"/>
+<rect x="633.587" y="376.229" width="14.426" height="271.542" rx="7.213"/>
+<rect x="659.347" y="372.259" width="14.426" height="279.482" rx="7.213"/>
+<rect x="685.107" y="399.948" width="14.426" height="224.103" rx="7.213"/>
+<rect x="710.867" y="419.184" width="14.426" height="185.632" rx="7.213"/>
+<rect x="736.627" y="441.333" width="14.426" height="141.335" rx="7.213"/>
+<rect x="762.387" y="471.276" width="14.426" height="81.448" rx="7.213"/>
+<rect x="788.147" y="487.477" width="14.426" height="49.046" rx="7.213"/>
+<rect x="813.907" y="502.938" width="14.426" height="18.124" rx="7.213"/>
+</g>
 </svg>

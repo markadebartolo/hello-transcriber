@@ -36,3 +36,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+
+## Sparkle
+
+[The Sparkle Project](https://sparkle-project.org/) provides software updates.
+See [Sparkle license and bundled component notices](third-party/Sparkle-LICENSE.txt).

@@ -1,0 +1,39 @@
+{
+  "phrase": "hello",
+  "voice": "macOS Samantha (en-US)",
+  "words_per_minute": 160,
+  "sample_rate": 44100,
+  "audio_sha256": "8392ba98739a0d7ca20ac6bfc6b6d82bd3d997d67d60b528b98c2542bcd8f3ea",
+  "trim_seconds": [
+    0.005,
+    0.5238
+  ],
+  "method": "25 equal-duration RMS bins; peak normalized; minimum visible bar width; small icons aggregate bins",
+  "rms": [
+    0.02924,
+    0.11151,
+    0.67267,
+    0.98188,
+    0.94352,
+    0.92876,
+    0.92047,
+    0.92271,
+    0.95413,
+    1.0,
+    0.98578,
+    0.94952,
+    0.89227,
+    0.91409,
+    0.74607,
+    0.77091,
+    0.72967,
+    0.59811,
+    0.6156,
+    0.49362,
+    0.40888,
+    0.31131,
+    0.1794,
+    0.10803,
+    0.03992
+  ]
+}
