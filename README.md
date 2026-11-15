@@ -6,23 +6,21 @@ original supported text field or copies the transcript to your clipboard. Option
 form filling can map a single dictation to one or several empty fields without
 selecting them first.
 
-**Notarized release candidate:** Apple accepted version 0.1.2, build 29 on
-November 14, 2026. The signature, stapled ticket, Gatekeeper, and macOS CI checks
-passed. The microphone permission recovery fix was verified on the signed app.
-See [validation](VALIDATION.md) for the checks still pending before publication.
+**Current release:** Hello 0.1.2 (build 29), published November 14, 2026.
+The Developer ID signature, stapled notarization ticket, Gatekeeper, and macOS CI
+checks passed. See [validation](VALIDATION.md) for the tests run on each build.
 
 ## Install
 
-Use only a signed, notarized ZIP from this repository's
-[Releases](https://github.com/markadebartolo/hello-transcriber/releases).
-If there is no published release, there is no validated downloadable build yet.
-
-1. Download the ZIP and `SHA256SUMS`; run `shasum -a 256 -c SHA256SUMS` beside them.
+1. Download the signed ZIP and `SHA256SUMS` from the
+   [latest release](https://github.com/markadebartolo/hello-transcriber/releases/latest).
+   Run `shasum -a 256 -c SHA256SUMS` beside them.
 2. Extract it in Finder. Drag `Hello.app` into Applications and open it in Finder.
 3. Hello opens the Dashboard. Follow the next action in **Permissions**, then
-   return to Hello after approving it in macOS. Microphone and Speech Recognition
-   enable dictation, Accessibility enables insertion, and Input Monitoring is
-   needed when the global shortcut cannot start without it.
+   return to Hello after approving it in macOS. Dictation requires Microphone
+   access and an OpenAI key saved under **Dictation**. Speech Recognition enables
+   optional live captions and local fallback. Accessibility enables insertion.
+   Input Monitoring is needed when the global shortcut cannot start without it.
 4. Click a supported text field, hold Control + Option while talking, then release.
    The floating recording indicator does not activate another application.
 
@@ -42,8 +40,8 @@ for Input Monitoring. Do not disable Gatekeeper to install Hello.
 
 Choose **Check for Updates** in the dashboard or menu bar. You can also turn on
 automatic checks in the dashboard. Sparkle checks the signed feed on GitHub and
-asks before installing an available update. The feed becomes available with the
-first public release. Builds made before Sparkle was added need a one-time manual update.
+asks before installing an available update. Builds made before Sparkle was added
+need a one-time manual update.
 
 ## Dictation activity
 

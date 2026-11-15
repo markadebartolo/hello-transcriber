@@ -2,18 +2,21 @@
 
 November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon host.
 
-## Notarized candidate 0.1.2, build 29
+## Notarized release 0.1.2, build 29
 
 - Source commit `e452d3a298596fc594307aaff0ce057522495a0d`. Apple submission
   `9c790047-f396-4c1e-9c7a-19d9bd81f8e8` was **Accepted**.
 - The universal local build and [macOS 15 and 26 CI](https://github.com/markadebartolo/hello-transcriber/actions/runs/43670198263)
-  passed. The byte-identical GitHub draft download passed signature, staple,
-  Gatekeeper and Sparkle checks and launched.
+  passed. The GitHub draft download matched the candidate byte for byte and
+  launched. After publication, the public ZIP and signed Sparkle feed also
+  matched the originals. The extracted public ZIP passed signature, staple,
+  and Gatekeeper checks. **Check for Updates** reported that 0.1.2 was current.
 - With microphone access revoked, the signed app showed **Not allowed**.
   **Set up microphone** opened Privacy & Security → Microphone from another
   pane. After the original grant was restored, Hello showed **Allowed**.
-- Live dictation, focus change, and cancellation on the exact build 29 download
-  remain pending. Build 28's physical results are recorded separately below.
+- Live dictation, focus change, cancellation, and Safari field behavior were
+  tested on build 28. The maintainer approved publishing build 29 with the
+  permission fix verified and those physical checks documented by build.
 
 ## Notarized candidate 0.1.1, build 28
 
