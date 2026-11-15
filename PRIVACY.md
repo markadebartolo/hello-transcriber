@@ -5,7 +5,7 @@ There is no always-listening product mode, telemetry, account, license server,
 private Dorsal service, or embedded API credential. Optional form filling captures
 a single foreground-window screenshot after an explicit dictation when enabled.
 
-Audio buffers go to Apple's Speech framework. Hello sets
+By default, audio buffers go to Apple's Speech framework. Hello sets
 [`requiresOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognitionrequest/requiresondevicerecognition)
 when the selected recognizer reports
 [`supportsOnDeviceRecognition`](https://developer.apple.com/documentation/speech/sfspeechrecognizer/supportsondevicerecognition).
@@ -18,10 +18,19 @@ Apple controls its service's handling/retention; Hello does not make a claim tha
 Apple stores nothing. Speech authorization is required even for on-device requests.
 See [Apple's authorization documentation](https://developer.apple.com/documentation/speech/asking-permission-to-use-speech-recognition).
 
+Selecting **OpenAI** in Dictation sends the completed recording from memory
+to the OpenAI audio transcription endpoint over HTTPS. This uses your OpenAI
+Keychain key and can incur charges. Only the microphone recording is sent for
+speech recognition. The destination draft and screenshots are excluded from that
+request. Cancel before release to discard the recording without submitting it.
+After release, cancelling stops local processing but cannot recall data already
+sent. No automatic retry to another provider is made. See
+[OpenAI’s API data controls](https://developers.openai.com/api/docs/guides/your-data).
+
 Optional punctuation cleanup runs through the on-device
 [Foundation Models framework](https://developer.apple.com/documentation/foundationmodels/generating-content-and-performing-tasks-with-foundation-models).
 Hello sends it only the transcript, not text from the destination field. No external
-LLM API is called for punctuation cleanup. The proposal is review-only, never automatically inserted.
+LLM API is called for the separate punctuation review. The proposal is review-only, never automatically inserted.
 
 Accessibility reads the original app, focused element, text value and selection
 in memory to verify that insertion is still safe. Secure Input and secure text

@@ -53,6 +53,10 @@ final class HelloController: ObservableObject {
     private var formCaptureError: String?
     private var contextIdentifier = UUID()
     private var sessionUsesForms = false
+    @Published var usesOpenAITranscription = UserDefaults.standard.bool(forKey: "Hello.openAITranscription") {
+        didSet { UserDefaults.standard.set(usesOpenAITranscription, forKey: "Hello.openAITranscription") }
+    }
+    @Published private(set) var speechKeyStatus = ""
     @Published var cleanPunctuation = false
 
     private var subscriptions = Set<AnyCancellable>()
@@ -134,7 +138,7 @@ final class HelloController: ObservableObject {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled, let self else { return }
                 self.refreshShortcut()
-                if self.dictation.isDictationInProgress && (!self.microphoneReady || !self.speechReady) {
+                if self.dictation.isDictationInProgress && (!self.microphoneReady || (!self.usesOpenAITranscription && !self.speechReady)) {
                     self.cancel()
                 }
             }
@@ -146,10 +150,39 @@ final class HelloController: ObservableObject {
         statusPanel = HelloStatusPanel(controller: self)
     }
 
+    func saveSpeechAPIKey(_ value: String) {
+        guard !isBusy else { return }
+        let saved = HelloAPIKey.save(value, for: .openAI)
+        speechKeyStatus = saved ? "OpenAI key saved in Keychain." : "Could not save the key. Check it and try again."
+        if saved && formProvider == .openAI { hasAPIKey = true }
+    }
+
+    func checkSpeechAPIKey() {
+        speechKeyStatus = HelloAPIKey.read(for: .openAI) == nil
+            ? "No OpenAI key is available. Add one here."
+            : "OpenAI key is available in Keychain."
+    }
+
+    func removeSpeechAPIKey() {
+        guard !isBusy else { return }
+        if HelloAPIKey.remove(for: .openAI) {
+            usesOpenAITranscription = false
+            speechKeyStatus = "Key removed."
+            if formProvider == .openAI {
+                hasAPIKey = false
+                formMode = false
+                keyMessage = ""
+            }
+        } else {
+            speechKeyStatus = "Keychain could not remove the key."
+        }
+    }
+
     func saveAPIKey(_ value: String) {
         guard !isBusy else { return }
         if HelloAPIKey.save(value, for: formProvider) {
             hasAPIKey = true
+            if formProvider == .openAI { speechKeyStatus = "OpenAI key saved in Keychain." }
             keyMessage = "Key saved in this Mac's Keychain."
         } else { keyMessage = "Could not save the key. Unlock Keychain and try again." }
     }
@@ -162,8 +195,16 @@ final class HelloController: ObservableObject {
     func removeAPIKey() {
         guard !isBusy else { return }
         formMode = false
-        if HelloAPIKey.remove(for: formProvider) { hasAPIKey = false; keyMessage = "Key removed." }
-        else { keyMessage = "Keychain could not remove the key." }
+        if HelloAPIKey.remove(for: formProvider) {
+            hasAPIKey = false
+            keyMessage = "Key removed."
+            if formProvider == .openAI {
+                usesOpenAITranscription = false
+                speechKeyStatus = "Key removed."
+            }
+        } else {
+            keyMessage = "Keychain could not remove the key."
+        }
     }
 
     func requestScreenAccess() {
@@ -236,8 +277,10 @@ final class HelloController: ObservableObject {
     private func startRecording() {
         guard !isBusy else { return }
         stopSpellingObservation()
-        guard microphoneReady && speechReady else {
-            resultMessage = "Open Hello and enable microphone and speech recognition first."
+        guard microphoneReady, usesOpenAITranscription || speechReady else {
+            resultMessage = usesOpenAITranscription
+                ? "Open Hello and allow microphone access."
+                : "Open Hello and allow microphone and speech recognition access."
             return
         }
         let missingFormAccess = HelloFormPrerequisites.missing(enabled: formMode,
@@ -250,6 +293,12 @@ final class HelloController: ObservableObject {
         if missingFormAccess == .apiKey {
             resultMessage = "Add your \(formProvider.displayName) API key in Hello first."
             return
+        }
+        if usesOpenAITranscription {
+            dictation.configureTranscriptionProvider(
+                HelloOpenAITranscriptionProvider(readKey: { HelloAPIKey.read(for: .openAI) }))
+        } else {
+            dictation.configureTranscriptionProvider(AppleSpeechTranscriptionProvider())
         }
         dismissResult()
         let identifier = UUID()
@@ -342,7 +391,8 @@ final class HelloController: ObservableObject {
             transcript = HelloTranscriptPolicy.acceptedCleanup(candidate, original: preparedText)
             cleanupTimeoutTask?.cancel()
             if shouldInsert, contextIdentifier == capturedRevision, let capturedDestination {
-                let insertion = await capturedDestination.insert(transcript, isCurrent: {
+                let insertedText = capturedDestination.preparedInsertion(transcript)
+                let insertion = await capturedDestination.insert(insertedText, isCurrent: {
                     self.sessionIdentifier == identifier && self.contextIdentifier == capturedRevision
                 })
                 guard !Task.isCancelled, sessionIdentifier == identifier else { return }
@@ -351,7 +401,7 @@ final class HelloController: ObservableObject {
                 case .success:
                     insertionMessage = ""
                     announceResult("Inserted into \(capturedDestination.applicationName).")
-                    if spellingMemoryEnabled, let watch = capturedDestination.correctionWatch(afterInserting: transcript) {
+                    if spellingMemoryEnabled, let watch = capturedDestination.correctionWatch(afterInserting: insertedText) {
                         observeSpellingCorrections(watch)
                     }
                 case .failure(let error):

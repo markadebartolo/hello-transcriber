@@ -123,6 +123,7 @@ final class HelloAppDelegate: NSObject, NSApplicationDelegate {
 private struct HelloPanel: View {
     @ObservedObject var controller: HelloController
     @State private var apiKey = ""
+    @State private var speechAPIKey = ""
     @ObservedObject var updates: HelloUpdates
     @State private var section = Section.overview
 
@@ -182,7 +183,10 @@ private struct HelloPanel: View {
         .buttonStyle(HelloButtonStyle())
         .onAppear { controller.refreshShortcut() }
         .onChange(of: controller.formProvider) { _, _ in apiKey = "" }
-        .onChange(of: section) { _, newSection in if newSection != .forms { apiKey = "" } }
+        .onChange(of: section) { _, newSection in
+            if newSection != .forms { apiKey = "" }
+            if newSection != .dictation { speechAPIKey = "" }
+        }
     }
 
     @ViewBuilder private var overview: some View {
@@ -248,6 +252,35 @@ private struct HelloPanel: View {
     private var dictationSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeading("Dictation", detail: "Choose what Hello does with your words after you release the shortcut.")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Transcription engine").font(.headline)
+                Picker("Transcription engine", selection: $controller.usesOpenAITranscription) {
+                    Text("Apple Speech").tag(false)
+                    Text("OpenAI").tag(true)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .disabled(controller.isBusy)
+                Text(controller.usesOpenAITranscription
+                     ? "OpenAI transcribes and punctuates the recording after you release the keys. Hello sends the recording to OpenAI and usage is billed to your account. The waveform stays visible while you speak."
+                     : "Apple Speech shows a live word preview and uses on-device recognition when supported.")
+                    .font(.callout).foregroundStyle(.secondary)
+                if controller.usesOpenAITranscription {
+                    SecureField("OpenAI API key", text: $speechAPIKey).textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("Save key") { controller.saveSpeechAPIKey(speechAPIKey); speechAPIKey = "" }
+                            .disabled(speechAPIKey.isEmpty || controller.isBusy)
+                        Button("Check saved key", action: controller.checkSpeechAPIKey).disabled(controller.isBusy)
+                        Button("Remove key", action: controller.removeSpeechAPIKey).disabled(controller.isBusy)
+                    }
+                    if !controller.speechKeyStatus.isEmpty {
+                        Text(controller.speechKeyStatus).font(.caption)
+                    }
+                    Text("Hello reuses your saved OpenAI key if you already connected it for Form Filling.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Divider()
             if controller.formMode {
                 Label("Form Filling is on. Turn it off to use these dictation settings.", systemImage: "info.circle")
                     .font(.callout).foregroundStyle(.secondary)
@@ -268,7 +301,9 @@ private struct HelloPanel: View {
             }
             Divider()
             Text("Speech privacy").font(.headline)
-            Text("Apple Speech runs on your Mac where supported. Otherwise Apple may process the audio. Hello keeps the latest transcript in memory and skips password fields.")
+            Text(controller.usesOpenAITranscription
+                 ? "OpenAI receives the recording. Hello keeps it in memory while processing and joins sentences to the draft on this Mac."
+                 : "Apple Speech runs on your Mac where supported. Otherwise Apple may process the audio. Hello keeps the latest transcript in memory and skips password fields.")
                 .font(.callout).foregroundStyle(.secondary)
         }
     }
@@ -381,7 +416,8 @@ private struct HelloPermissions: View {
                     controller.requestAudioPermission(.microphone)
                 }
                 permission("Speech Recognition", icon: "text.bubble", detail: "Turn speech into text",
-                           ready: controller.speechReady) {
+                           ready: controller.speechReady || controller.usesOpenAITranscription,
+                           readyLabel: controller.speechReady ? "Allowed" : "Not allowed (optional)") {
                     controller.requestAudioPermission(.speech)
                 }
                 permission("Accessibility", icon: "accessibility", detail: "Insert into a text field",
@@ -403,7 +439,7 @@ private struct HelloPermissions: View {
         if !controller.microphoneReady {
             return ("Set up microphone", { controller.requestAudioPermission(.microphone) })
         }
-        if !controller.speechReady {
+        if !controller.speechReady && !controller.usesOpenAITranscription {
             return ("Set up speech recognition", { controller.requestAudioPermission(.speech) })
         }
         if !controller.accessibilityReady {

@@ -104,3 +104,16 @@ compilation are not claims of physical runtime testing on those systems.
   from an older Sparkle-enabled build and verify relaunch and preserved settings.
 - Verify the appcast and archive match the release manifest and that their
   signatures validate. Change a temporary copy and confirm signature rejection.
+
+
+### OpenAI transcription and successive dictation
+
+- With a disposable test recording and an authorized OpenAI key, select OpenAI
+  under Dictation. Confirm the waveform while holding, a punctuated transcript
+  after release, and no Apple Speech permission requirement in this mode.
+  Verify missing key, network failure and cancellation preserve the draft.
+  Switch back to Apple Speech and confirm its live words still work.
+- In the ChatGPT composer, dictate two separate sentences with the caret at the
+  end. Check spacing, punctuation, preserved existing content and no submission.
+  Then replace a selection and insert in the middle of a sentence. Verify those
+  edits do not add end-of-draft punctuation.

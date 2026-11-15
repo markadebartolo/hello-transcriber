@@ -8,6 +8,11 @@ extraction on November 14, 2026. No earlier Hello release history is implied.
   insertion no longer has a separate switch.
 - Permissions show current Allowed or Not allowed status, including screenshot
   access on the Form Filling tab.
+- Successive ChatGPT dictations get spaces and conservative terminal punctuation
+  at the end of the draft. Existing text is preserved.
+- Optional OpenAI audio transcription with a personal API key. Audio is sent
+  on release and the model returns punctuated text. Apple Speech remains the
+  default and continues to offer live word previews.
 - Hold Control + Option to dictate using Apple Speech; release to finish.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.

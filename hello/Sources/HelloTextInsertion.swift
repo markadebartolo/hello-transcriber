@@ -21,6 +21,49 @@ enum HelloTextFieldEligibility {
     }
 }
 
+/// Adjusts only the text being appended. Never rewrites an existing draft,
+/// changes a recognized word, or formats an insertion in the middle of text.
+enum HelloDraftPunctuation {
+    static func appendChunk(_ text: String, to draft: String, selection: CFRange) -> String {
+        guard selection.length == 0, selection.location == draft.utf16.count,
+              let first = text.first, !first.isWhitespace else { return text }
+
+        var prefix = ""
+        if let last = draft.last, !last.isWhitespace,
+           !".,;:!?…。！？、，；：)]}”’".contains(first),
+           !"([{“".contains(last) {
+            let newerSentence = first.isUppercase && canFinish(draft)
+            prefix = newerSentence ? (isQuestion(draft) ? "? " : ". ") : " "
+        }
+
+        let suffix = canFinish(text) ? (isQuestion(text) ? "?" : ".") : ""
+        return prefix + text + suffix
+    }
+
+    private static func canFinish(_ text: String) -> Bool {
+        // Preserve existing punctuation, closing quotes and explicitly supplied
+        // whitespace. Avoid adding a period to a lone word, URL or address.
+        guard let last = text.last, last.isLetter || last.isNumber,
+              let line = text.split(whereSeparator: \.isNewline).last else { return false }
+        let words = line.split(whereSeparator: \.isWhitespace)
+        guard words.count > 1, let tail = words.last else { return false }
+        return !tail.contains("://") && !tail.contains("@") && !tail.contains(".")
+    }
+
+    private static func isQuestion(_ text: String) -> Bool {
+        let line = text.split(whereSeparator: \.isNewline).last ?? ""
+        let sentence = line.split(whereSeparator: { ".!?".contains($0) }).last ?? line
+        let words = sentence.lowercased().split(whereSeparator: \.isWhitespace)
+        let auxiliaries: Set<Substring> = ["am", "are", "is", "was", "were", "do", "does", "did",
+            "can", "could", "will", "would", "should", "have", "has", "may"]
+        let pronouns: Set<Substring> = ["i", "you", "he", "she", "it", "we", "they", "there", "this", "that"]
+        let interrogatives: Set<Substring> = ["what", "when", "where", "why", "who", "how", "which"]
+        guard words.count >= 3 else { return false }
+        return (auxiliaries.contains(words[0]) && pronouns.contains(words[1]))
+            || (interrogatives.contains(words[0]) && auxiliaries.contains(words[1]))
+    }
+}
+
 enum HelloPastePolicy {
     static func shouldUsePaste(for bundleIdentifier: String?) -> Bool {
         bundleIdentifier == "com.openai.chat" || bundleIdentifier == "com.openai.codex"
@@ -143,6 +186,10 @@ struct HelloTextDestination {
             selectedRange: range,
             originalValue: value
         )
+    }
+
+    func preparedInsertion(_ text: String) -> String {
+        usesPaste ? HelloDraftPunctuation.appendChunk(text, to: originalValue, selection: selectedRange) : text
     }
 
     /// Replace the verified selection, or set a verified completely empty field.

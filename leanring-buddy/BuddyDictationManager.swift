@@ -316,7 +316,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         return AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined
     }
 
-    private let transcriptionProvider: any BuddyTranscriptionProvider
+    private var transcriptionProvider: any BuddyTranscriptionProvider
     private let audioCapture: any BuddyAudioCapture
     private let permissionCheck: (@MainActor () async -> Bool)?
     private var activeTranscriptionSession: (any BuddyStreamingTranscriptionSession)?
@@ -345,6 +345,12 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         self.permissionCheck = permissionCheck
         self.transcriptionProviderDisplayName = transcriptionProvider.displayName
         super.init()
+    }
+
+    func configureTranscriptionProvider(_ provider: any BuddyTranscriptionProvider) {
+        guard !isDictationInProgress else { return }
+        transcriptionProvider = provider
+        transcriptionProviderDisplayName = provider.displayName
     }
 
     func startPersistentDictationFromMicrophoneButton(
