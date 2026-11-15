@@ -6,9 +6,11 @@ original supported text field or copies the transcript to your clipboard. Option
 form filling can map a single dictation to one or several empty fields without
 selecting them first.
 
-**Release candidate:** source builds and regression tests have run locally. A public
-binary release is gated on signed-device smoke tests, Apple notarization, and
-verification of the downloaded artifact. See [validation](VALIDATION.md).
+**Notarized release candidate:** Apple accepted version 0.1.0, build 18 on
+November 14, 2026. Its ticket is stapled, its signature verifies, and Gatekeeper
+accepts it as Notarized Developer ID. Local checks and macOS CI passed. A public
+release still requires the remaining signed-device functionality tests and
+verification of the exact downloaded artifact. See [validation](VALIDATION.md).
 
 ## Install
 
