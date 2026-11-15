@@ -267,7 +267,7 @@ final class HelloController: ObservableObject {
     }
 
     func openPrivacySettings(_ pane: String) {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_\(pane)") else { return }
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_\(pane)") else { return }
         NSWorkspace.shared.open(url)
     }
 

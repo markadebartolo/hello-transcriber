@@ -1,8 +1,8 @@
-# Hello 0.1.1
+# Hello 0.1.2
 
-First standalone Hello Transcriber candidate, developed from the scoped Dorsal
-extraction on November 14, 2026. No earlier Hello release history is implied.
+Standalone Hello Transcriber, developed from the scoped Dorsal extraction.
 
+- Permission recovery opens the corresponding section in macOS Privacy & Security.
 - ChatGPT desktop dictation uses the app’s standard Paste command after verifying
   the original selection and restores prior clipboard contents. Automatic
   insertion no longer has a separate switch.
