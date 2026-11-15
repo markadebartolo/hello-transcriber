@@ -84,7 +84,11 @@ clear them. See [privacy](PRIVACY.md).
   waits for the app's accessibility value to update. If a write was accepted but
   cannot be verified, it says **Check text field** and retains the transcript in
   Hello for manual Copy, without an automatic duplicate paste or clipboard change.
-- No Return, Send or keyboard paste is generated. If insertion is unavailable,
+- Hello automatically inserts in normal dictation. In the ChatGPT desktop app,
+  it invokes the original app’s standard Paste menu command after verifying
+  focus and selection. Hello restores prior clipboard contents where possible
+  and does not overwrite a newer copy. Hello never presses Return or Send.
+  If insertion is unavailable,
   Hello replaces the clipboard with the original transcript and shows a brief
   nonactivating **Copied to clipboard.** indicator. Cancel/Clear do not change it.
 - **Escape** or **Cancel** discards a recording/result in progress. Capture also

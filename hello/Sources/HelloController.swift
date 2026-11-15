@@ -53,7 +53,6 @@ final class HelloController: ObservableObject {
     private var formCaptureError: String?
     private var contextIdentifier = UUID()
     private var sessionUsesForms = false
-    @Published var automaticallyInsert = true
     @Published var cleanPunctuation = false
 
     private var subscriptions = Set<AnyCancellable>()
@@ -69,6 +68,8 @@ final class HelloController: ObservableObject {
     var microphoneReady: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .authorized }
     var speechReady: Bool { SFSpeechRecognizer.authorizationStatus() == .authorized }
     var accessibilityReady: Bool { AXIsProcessTrusted() }
+    var screenCaptureReady: Bool { CGPreflightScreenCaptureAccess() }
+    var inputMonitoringReady: Bool { CGPreflightListenEventAccess() }
     var isBusy: Bool { recordingTask != nil || dictation.isDictationInProgress || isProcessingTranscript || isRequestingPermissions }
     var recordingFeedback: HelloRecordingFeedback {
         HelloRecordingFeedback(
@@ -166,7 +167,7 @@ final class HelloController: ObservableObject {
     }
 
     func requestScreenAccess() {
-        if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
+        if !screenCaptureReady { _ = CGRequestScreenCaptureAccess() }
         openPrivacySettings("ScreenCapture")
     }
 
@@ -183,7 +184,7 @@ final class HelloController: ObservableObject {
 
     }
 
-    var inputMonitoringNeeded: Bool { shortcutMonitor.tapUnavailable && !CGPreflightListenEventAccess() }
+    var inputMonitoringNeeded: Bool { shortcutMonitor.tapUnavailable && !inputMonitoringReady }
 
     enum AudioPermission { case microphone, speech }
 
@@ -240,7 +241,7 @@ final class HelloController: ObservableObject {
             return
         }
         let missingFormAccess = HelloFormPrerequisites.missing(enabled: formMode,
-            screenAllowed: { CGPreflightScreenCaptureAccess() },
+            screenAllowed: { screenCaptureReady },
             keyAvailable: { HelloAPIKey.read(for: formProvider) != nil })
         if missingFormAccess == .screenAccess {
             resultMessage = "Open Hello → Form filling → Allow form filling screenshots. macOS calls this permission Screen Recording."
@@ -268,7 +269,7 @@ final class HelloController: ObservableObject {
         }
         destination = nil
         insertionMessage = ""
-        if automaticallyInsert && !sessionUsesForms {
+        if !sessionUsesForms {
             do { destination = try HelloTextDestination.capture() }
             catch { insertionMessage = error.localizedDescription }
         }
@@ -312,7 +313,7 @@ final class HelloController: ObservableObject {
             return
         }
         let shouldClean = cleanPunctuation && OnDeviceModel.isAvailable
-        let shouldInsert = automaticallyInsert && !shouldClean
+        let shouldInsert = !shouldClean
         isProcessingTranscript = shouldClean || shouldInsert
         let capturedDestination = destination
         let capturedRevision = contextIdentifier
@@ -355,7 +356,9 @@ final class HelloController: ObservableObject {
                     }
                 case .failure(let error):
                     insertionMessage = "\(capturedDestination.applicationName): \(error.localizedDescription)"
-                    if error == .unverified {
+                    if error == .clipboardUnavailable {
+                        announceResult("Transcript ready")
+                    } else if error == .unverified {
                         // A successful setter can still be pending or partially
                         // applied. Do not encourage an automatic duplicate paste.
                         announceResult("Check text field")
@@ -366,7 +369,6 @@ final class HelloController: ObservableObject {
             } else {
                 isProcessingTranscript = false
                 if shouldClean { insertionMessage = "Punctuation cleanup is review-only. Review the suggestion in Hello." }
-                else if !automaticallyInsert { insertionMessage = "Automatic insertion is turned off." }
                 else if contextIdentifier != capturedRevision { insertionMessage = "The field, selection, or app changed before insertion." }
                 copyFallbackTranscript()
             }

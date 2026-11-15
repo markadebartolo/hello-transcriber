@@ -254,9 +254,8 @@ private struct HelloPanel: View {
                 Button("Open Form Filling") { section = .forms }
             }
             VStack(alignment: .leading, spacing: 6) {
-                Toggle("Insert into the original text field", isOn: $controller.automaticallyInsert)
-                    .disabled(controller.formMode || controller.isBusy).helloPointer()
-                Text("Hello inserts into the field you started in when it can verify the selection. If it can’t safely insert, it copies your words or asks you to check the field.")
+                Text("Automatic insertion").font(.headline)
+                Text("Dictation goes into the field you started in when Hello can verify the selection. If it can’t safely insert, it copies your words or asks you to check the field.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 6) {
@@ -306,7 +305,8 @@ private struct HelloPanel: View {
     }
 
     private var formSettings: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let screenshotsAllowed = controller.screenCaptureReady
+        return VStack(alignment: .leading, spacing: 12) {
             sectionHeading("Form Filling", detail: "Dictate answers into empty fields. This optional feature uses your AI provider and can fill several fields at once.")
             Text("Connect a provider").font(.headline)
             Picker("AI provider", selection: $controller.formProvider) {
@@ -327,7 +327,18 @@ private struct HelloPanel: View {
             if !controller.keyMessage.isEmpty { Text(controller.keyMessage).font(.caption) }
             Divider()
             Text("Allow screenshots").font(.headline)
-            Button("Allow form filling screenshots") { controller.requestScreenAccess() }.disabled(controller.isBusy)
+            HStack {
+                Label(screenshotsAllowed ? "Allowed" : "Not allowed",
+                      systemImage: screenshotsAllowed ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(screenshotsAllowed ? Color.green : Color.secondary)
+                    .accessibilityLabel(screenshotsAllowed
+                                        ? "Screenshot permission allowed" : "Screenshot permission not allowed")
+                Spacer()
+                Button(screenshotsAllowed ? "Open Screen Recording Settings" : "Allow form filling screenshots") {
+                    controller.requestScreenAccess()
+                }
+                .disabled(controller.isBusy)
+            }
             Text("Form filling uses a screenshot of the active window to identify text boxes. macOS calls this permission Screen Recording. Hello does not continuously record your screen or save screenshots. Ordinary dictation does not need this permission. After changing access, macOS may require reopening Hello. Form filling does not submit forms or send messages.")
                 .font(.caption).foregroundStyle(.secondary)
             Divider()
@@ -379,7 +390,7 @@ private struct HelloPermissions: View {
                 }
                 permission("Input Monitoring", icon: "keyboard", detail: "Listen for the shortcut",
                            ready: !controller.inputMonitoringNeeded,
-                           readyLabel: controller.shortcutMonitor.tapUnavailable ? "Check shortcut" : "Shortcut available") {
+                           readyLabel: controller.inputMonitoringReady ? "Allowed" : "Not allowed (optional)") {
                     controller.openPrivacySettings("ListenEvent")
                 }
             }
@@ -414,7 +425,7 @@ private struct HelloPermissions: View {
             if ready {
                 Text(readyLabel).font(.caption.weight(.medium)).foregroundStyle(.secondary)
             } else {
-                Text("Needs setup").font(.caption).foregroundStyle(.secondary)
+                Text("Not allowed").font(.caption).foregroundStyle(.secondary)
                 Button("Set up", action: action)
                     .font(.caption).disabled(controller.isBusy)
                     .accessibilityLabel("Set up \(title)")

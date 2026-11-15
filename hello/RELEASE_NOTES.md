@@ -1,8 +1,13 @@
-# Hello 0.1.0
+# Hello 0.1.1
 
 First standalone Hello Transcriber candidate, developed from the scoped Dorsal
 extraction on November 14, 2026. No earlier Hello release history is implied.
 
+- ChatGPT desktop dictation uses the app’s standard Paste command after verifying
+  the original selection and restores prior clipboard contents. Automatic
+  insertion no longer has a separate switch.
+- Permissions show current Allowed or Not allowed status, including screenshot
+  access on the Form Filling tab.
 - Hold Control + Option to dictate using Apple Speech; release to finish.
 - Live transcript, persistent held-key indicator with a real microphone-level
   waveform, explicit stopped/transcribing states, Escape/Cancel, Copy and Clear.

@@ -12,7 +12,8 @@ Required checks (the IDs are release-gate keys):
 - [ ] **permissions:** fresh Hello identity prompts once for Microphone and Speech;
   deny/recover each through Settings. Check the permission row at the minimum
   window width, use the next action, and confirm returning from Settings updates
-  the status. The screenshot permission belongs to the separate form feature. Accessibility/Input Monitoring denial is
+  the status. Form Filling displays the current screenshot permission without
+  enabling the feature or requesting access automatically. Accessibility/Input Monitoring denial is
   visible; Retry works after grants/relaunch. No Screen Recording prompt in normal mode; Camera is never requested.
 - [ ] **microphone:** actual spoken test in TextEdit; recording HUD does not take
   focus; first words survive; audio meter responds; release stops microphone.
@@ -32,6 +33,9 @@ Required checks (the IDs are release-gate keys):
   fields may use AXValue; existing text must only replace the captured selection.
   Delayed readback must not duplicate insertion. An accepted but unverified write
   shows Check text field, preserves the clipboard and retains manual Copy.
+  In the ChatGPT desktop composer, test a blank field and a selected part of a
+  draft. Verify the Paste command inserts without submitting, prior clipboard
+  formats survive, and focus changes stop insertion.
 - [ ] **focus:** switch field/app or selection, type/click during capture and
   cleanup, including switching away and back. No stale or wrong-field insertion.
 - [ ] **secure_field:** password field and Secure Input never receive automatic

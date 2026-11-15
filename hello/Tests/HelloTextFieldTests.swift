@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 
 @main
@@ -30,6 +31,36 @@ struct HelloTextFieldTests {
             precondition(HelloTextFieldEligibility.writeAttribute(original: original, range: CFRange(location: 0, length: original.utf16.count), valueWritable: true) == kAXSelectedTextAttribute,
                          "Never replace an existing field value, even when all its text is selected")
         }
+
+        precondition(HelloPastePolicy.shouldUsePaste(for: "com.openai.chat"))
+        precondition(HelloPastePolicy.shouldUsePaste(for: "com.openai.codex"))
+        precondition(!HelloPastePolicy.shouldUsePaste(for: "com.apple.TextEdit"))
+        precondition(HelloPastePolicy.isPlainPaste(role: kAXMenuItemRole, enabled: true, character: "V", modifiers: 0))
+        for key in ["\r", "c", "x"] {
+            precondition(!HelloPastePolicy.isPlainPaste(role: kAXMenuItemRole, enabled: true, character: key, modifiers: 0))
+        }
+        precondition(!HelloPastePolicy.isPlainPaste(role: kAXMenuItemRole, enabled: true, character: "V", modifiers: 1))
+        precondition(!HelloPastePolicy.isPlainPaste(role: kAXMenuItemRole, enabled: false, character: "V", modifiers: 0))
+
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let original = NSPasteboardItem()
+        precondition(original.setString("original", forType: .string))
+        let extraType = NSPasteboard.PasteboardType("com.markdebartolo.hello.test")
+        precondition(original.setData(Data([1, 2, 3]), forType: extraType))
+        precondition(board.writeObjects([original]))
+        let snapshot = HelloClipboardSnapshot(board)!
+        board.clearContents()
+        precondition(board.setString("dictation", forType: .string))
+        snapshot.restore(board, ifUnchangedSince: board.changeCount)
+        precondition(board.string(forType: .string) == "original")
+        precondition(board.data(forType: extraType) == Data([1, 2, 3]))
+        let countBeforeNewCopy = board.changeCount
+        board.clearContents()
+        precondition(board.setString("new user copy", forType: .string))
+        snapshot.restore(board, ifUnchangedSince: countBeforeNewCopy)
+        precondition(board.string(forType: .string) == "new user copy")
+        print("Hello Paste routing, command selection, clipboard format restoration and concurrent copy tests passed")
 
         var reads = 0
         var pauses = 0

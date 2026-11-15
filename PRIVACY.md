@@ -26,7 +26,12 @@ LLM API is called for punctuation cleanup. The proposal is review-only, never au
 Accessibility reads the original app, focused element, text value and selection
 in memory to verify that insertion is still safe. Secure Input and secure text
 fields are excluded. Normal dictation writes AX selected text after revalidation,
-or sets AXValue for a verified completely empty field with a writable value. It
+or sets AXValue for a verified completely empty field with a writable value.
+For ChatGPT, Hello temporarily puts the transcript on the system clipboard and
+invokes the app’s Paste command once. It keeps a bounded snapshot of readable
+clipboard items in memory, restores it if the clipboard still belongs to Hello,
+and leaves a newer user copy alone. Clipboard managers may observe the temporary
+transcript. Hello
 never generates Return/Send. An external application's Accessibility API cannot
 provide an atomic compare-and-set transaction, so insertion is best effort and
 unsupported/ambiguous fields fall back to automatic clipboard copy. Avoid editing or switching focus
