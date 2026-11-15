@@ -10,6 +10,8 @@ REPO=https://github.com/markadebartolo/hello-transcriber
 [[ "$MODE" == generate || "$MODE" == verify ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print SUFeedURL' "$APP/Contents/Info.plist")" == "$REPO/releases/latest/download/appcast.xml" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print SURequireSignedFeed' "$APP/Contents/Info.plist")" == true ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print SUVerifyUpdateBeforeExtraction' "$APP/Contents/Info.plist")" == true ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print SUSignedFeedFailureExpirationInterval' "$APP/Contents/Info.plist")" == 0 ]]
 PUBKEY="$(/usr/libexec/PlistBuddy -c 'Print SUPublicEDKey' "$APP/Contents/Info.plist")"
 [[ "$("$HELLO_SPARKLE_BIN/generate_keys" --account "$ACCOUNT" -p)" == "$PUBKEY" ]] || {
   echo 'The Hello Sparkle Keychain signing key does not match this app.' >&2

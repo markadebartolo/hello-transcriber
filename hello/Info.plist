@@ -7,7 +7,9 @@
     <key>NSSpeechRecognitionUsageDescription</key><string>Hello uses Apple Speech to transcribe your voice. Recognition runs on this Mac when supported; otherwise Apple may process the audio.</string>
     <key>SUFeedURL</key><string>https://github.com/markadebartolo/hello-transcriber/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key><string>Tbzes4QNDjm/9Nc3qVYMUD2aAz+i5rmJgHK6eHu8SLs=</string>
+    <key>SUVerifyUpdateBeforeExtraction</key><true/>
     <key>SURequireSignedFeed</key><true/>
+    <key>SUSignedFeedFailureExpirationInterval</key><integer>0</integer>
     <key>SUEnableAutomaticChecks</key><false/>
     <key>SUAllowsAutomaticUpdates</key><false/>
     <key>SUEnableSystemProfiling</key><false/>
