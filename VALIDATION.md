@@ -8,14 +8,19 @@ November 14, 2026 — macOS 27.3 (26C5035r), Xcode 27.2 (27B52), Apple silicon h
 - Apple submission `7b70cc8c-9d7a-4e67-9283-a2fa0bb28ced` was **Accepted**.
   The installed app and the app extracted locally from the candidate ZIP passed
   signature, staple, and Gatekeeper checks. Both Sparkle signatures verified.
-- The local universal Swift 6 build and regression suite passed. The hosted
-  [macOS CI run](https://github.com/markadebartolo/hello-transcriber/actions/runs/43665277853)
-  ended before any job steps ran.
+- The local universal Swift 6 build and regression suite passed.
+  [Hosted CI](https://github.com/markadebartolo/hello-transcriber/actions/runs/43666076885)
+  passed on macOS 15 and 26 after the repository became public.
 - Hello detected the saved OpenAI key on launch. The maintainer tested live
   dictation and reported that punctuation and formatting appeared fixed and
   that the final result took longer than Apple Speech.
-- The rest of the signed-device smoke procedure and the smoke test of the exact
-  GitHub download remain pending.
+- The ZIP downloaded from the GitHub draft matched the signed candidate byte
+  for byte. The extracted app passed signature, staple, and Gatekeeper checks
+  and opened successfully. The maintainer confirmed the exact download replaced
+  only the selected text in TextEdit, cancelled with Escape without inserting,
+  and copied the transcript when focus moved to another TextEdit window.
+- The remaining signed-device checks, including permission denial and
+  recovery and the optional feature checks, remain pending.
 
 ## Notarized candidate 0.1.0, build 18
 
