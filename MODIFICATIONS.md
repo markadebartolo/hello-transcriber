@@ -201,7 +201,7 @@ Changing the form provider or removing a key while idle no longer clears a norma
 transcript. Form filling remains separately opt-in and off at launch.
 
 
-## November 14, 2026 — optional OpenAI speech and draft-aware insertion
+## November 14, 2026 — OpenAI speech and draft-aware insertion
 
 Hello can select the provider while the dictation manager is idle. The
 shared manager change retains its generation, cancellation and microphone
@@ -210,7 +210,8 @@ failure. The OpenAI provider
 holds a bounded mono WAV recording in memory, requests transcription only after
 release, rejects redirects and reports network or authorization failure without
 sending the recording to a different server. The key stays in Keychain until a
-session needs it. No destination draft or screenshot enters the transcription
+session needs it. Hello automatically uses the saved OpenAI key for dictation.
+No destination draft or screenshot enters the transcription
 request. The original source provenance stays unchanged and the current
 manager and Apple preview checksums were refreshed.
 

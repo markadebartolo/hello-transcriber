@@ -177,7 +177,7 @@ This mode does not apply punctuation cleanup. It cannot recover a transcription
 mistake or guarantee a model's interpretation of intent; always review filled forms.
 
 Each user brings their own key. The maintainer's key is never in the source or app.
-Normal transcription and local cleanup do not require any external provider key.
+Dictation uses the saved OpenAI key. Local punctuation cleanup runs on-device.
 The selected service receives the active-window screenshot, field labels/bounds,
 and transcript:
 
@@ -215,9 +215,9 @@ model. Availability is checked at runtime. The minimum OS is a deployment target
 not a claim of microphone testing on every OS/hardware combination.
 
 Use Xcode **16+** with Swift 6 for the app and tests. Use Xcode 26+ to compile in
-Foundation Models support; older SDKs omit cleanup. No package downloads, Dorsal
-checkout, or private services are required. An API key is needed only for optional
-AI form filling, not to build or run normal dictation.
+Foundation Models support. Older SDKs omit cleanup. Xcode resolves the pinned
+Sparkle dependency. A clean clone builds independently of Dorsal and without
+API credentials. To dictate in the built app, save an OpenAI API key.
 
 ```sh
 git clone https://github.com/markadebartolo/hello-transcriber.git
